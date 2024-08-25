@@ -1,48 +1,58 @@
-use std::fmt::Display;
+use ark_ff::fields::{Field, Fp64, MontBackend, MontConfig};
+use rand::thread_rng;
 
-use ff::derive::bitvec::store::BitStore;
+#[derive(MontConfig)]
+#[modulus = "17"]
+#[generator = "3"]
+pub struct SmallFieldConfig;
+pub type SmallField = Fp64<MontBackend<SmallFieldConfig, 1>>;
 
-#[macro_use]
-extern crate ff;
+#[derive(MontConfig)]
+#[modulus = "3221225473"]
+#[generator = "5"]
+pub struct StarkFieldConfig;
+pub type StarkField = Fp64<MontBackend<StarkFieldConfig, 1>>;
 
-#[derive(PrimeField)]
-#[PrimeFieldModulus = "65537"]
-#[PrimeFieldGenerator = "3"]
-#[PrimeFieldReprEndianness = "little"]
-struct Field([u64; 1]);
+fn rand_field<T: Field>() -> T {
+    let mut rng = thread_rng();
+    T::rand(&mut rng)
+}
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct Polynomial(Vec<Field>);
-impl Display for Polynomial {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (expo, coef_f) in self.0.iter().enumerate() {
-            let coef = coef_f.0[0];
-            if expo == 0 {
-                write!(f, "{:?}x", coef)?;
-            } else {
-                write!(f, " + {:?}x^{:?}", coef, expo)?;
-            }
-        }
-        Ok(())
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn small_field() {
+        use super::*;
+
+        type F = SmallField;
+
+        let a = F::from(9);
+        let b = F::from(10);
+
+        println!("a = {:?}", a); // -1 = 16 mod 17
+        println!("b = {:?}", b); // -1 = 16 mod 17
+        println!("26 = {:?} [expect: 9]", F::from(26)); // 26 =  9 mod 17
+        println!("a - b = {:?} [expect: 16]", a - b); // -1 = 16 mod 17
+        println!("a + b = {:?} [expect: 2]", a + b); // 19 =  2 mod 17
+        println!("a * b = {:?} [expect: 5]", a * b); // 90 =  5 mod 17
+        println!("a.square() = {:?} [expect: 13]", a.square()); // 81 = 13 mod 17
+        println!("b.double() = {:?} [expect: 3]", b.double()); // 20 =  3 mod 17
+        println!("a / b = {:?} [expect: 6]", a / b);
+        println!("a ** b = {:?} [expect: 13]", a.pow(b.0)); // pow takes BigInt as input
+        assert_eq!(a, F::from(26)); // 26 =  9 mod 17
+        assert_eq!(a - b, F::from(16)); // -1 = 16 mod 17
+        assert_eq!(a + b, F::from(2)); // 19 =  2 mod 17
+        assert_eq!(a * b, F::from(5)); // 90 =  5 mod 17
+        assert_eq!(a.square(), F::from(13)); // 81 = 13 mod 17
+        assert_eq!(b.double(), F::from(3)); // 20 =  3 mod 17
+        assert_eq!(a / b, a * b.inverse().unwrap()); // need to unwrap since `b` could be 0 which is not invertible
+        assert_eq!(a.pow(b.0), F::from(13)); // pow takes BigInt as input
     }
 }
 
-impl From<String> for Polynomial {
-    fn from(value: String) -> Self {
-        let mut poly = vec![];
-        for byte in value.bytes().into_iter() {
-            let value: u64 = byte.into();
-            poly.push(Field([value; 1]));
-        }
-        Polynomial(poly)
-    }
-}
-
+type Poly<T> = Vec<T>;
 fn main() {
-    let message = String::from("hello world");
-    let len = message.len();
-    let poly = Polynomial::from(message.clone());
-    println!("poly = {}", poly);
-    println!("message = {:?}", message);
-    println!("len = {:?}", len);
+    type F = StarkField;
+    let p: Poly<F> = vec![rand_field::<F>(); 8];
+    println!("p = {:?}", p);
 }

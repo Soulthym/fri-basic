@@ -4,4 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ff = { version = "0.13.0", features = ["derive"] }
+ark-ff = "0.4.2"
+ark-std = "0.4.0"
+rand = "0.8.5"
