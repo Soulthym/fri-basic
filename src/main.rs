@@ -18,6 +18,13 @@ fn rand_field<T: Field>() -> T {
     T::rand(&mut rng)
 }
 
+type Poly<T> = Vec<T>;
+fn main() {
+    type F = StarkField;
+    let p: Poly<F> = vec![rand_field::<F>(); 8];
+    println!("p = {:?}", p);
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -48,11 +55,4 @@ mod tests {
         assert_eq!(a / b, a * b.inverse().unwrap()); // need to unwrap since `b` could be 0 which is not invertible
         assert_eq!(a.pow(b.0), F::from(13)); // pow takes BigInt as input
     }
-}
-
-type Poly<T> = Vec<T>;
-fn main() {
-    type F = StarkField;
-    let p: Poly<F> = vec![rand_field::<F>(); 8];
-    println!("p = {:?}", p);
 }
