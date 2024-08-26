@@ -1,4 +1,7 @@
-use ark_ff::fields::{Field, Fp64, MontBackend, MontConfig};
+use ark_ff::{
+    fields::{Field, Fp64, MontBackend, MontConfig},
+    BigInt,
+};
 use rand::{rngs::ThreadRng, thread_rng};
 use std::{
     fmt::Display,
@@ -32,9 +35,27 @@ impl<T: Field> Rand for T {
 
 type Fq = SmallField;
 
-#[derive(Clone, Debug, PartialEq)]
+trait Polynomial {
+    fn eval(self, x: Fq) -> Fq;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct Poly<F> {
     coefs: Vec<F>,
+}
+
+impl Polynomial for Poly<Fq> {
+    fn eval(self, x: Fq) -> Fq {
+        let mut res = Fq::from(0);
+        for (expo, coef) in self.coefs.iter().enumerate() {
+            match expo {
+                0 => res += coef,
+                1 => res += x * coef,
+                _ => res += x.pow(BigInt::<1>([expo as u64])) * coef,
+            }
+        }
+        res
+    }
 }
 
 impl RandN for Poly<Fq> {
@@ -67,7 +88,10 @@ impl Display for Poly<Fq> {
 fn main() {
     let mut rng = thread_rng();
     let p: Poly<Fq> = Poly::rand(&mut rng, 10);
-    println!("p = {}", p);
+    println!("p(x) = {}", p);
+    for i in 0..16 {
+        println!("p({}) = {}", &i, p.clone().eval(Fq::from(i)));
+    }
 }
 
 #[cfg(test)]
