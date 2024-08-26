@@ -1,5 +1,13 @@
 use ark_ff::fields::{Field, Fp64, MontBackend, MontConfig};
-use rand::thread_rng;
+use rand::{rngs::ThreadRng, thread_rng};
+
+trait Rand {
+    fn rand(rng: &mut ThreadRng) -> Self;
+}
+
+trait RandN {
+    fn rand(rng: &mut ThreadRng, num: u64) -> Self;
+}
 
 #[derive(MontConfig)]
 #[modulus = "17"]
@@ -13,15 +21,17 @@ pub type SmallField = Fp64<MontBackend<SmallFieldConfig, 1>>;
 pub struct StarkFieldConfig;
 pub type StarkField = Fp64<MontBackend<StarkFieldConfig, 1>>;
 
-fn rand_field<T: Field>() -> T {
-    let mut rng = thread_rng();
-    T::rand(&mut rng)
+impl<T: Field> Rand for T {
+    fn rand(rng: &mut ThreadRng) -> Self {
+        T::rand(rng)
+    }
 }
 
-type Poly<T> = Vec<T>;
+type Fq = SmallField;
+
 fn main() {
-    type F = StarkField;
-    let p: Poly<F> = vec![rand_field::<F>(); 8];
+    type Fq = StarkField;
+    let p: Poly<Fq> = vec![rand_field::<Fq>(); 8];
     println!("p = {:?}", p);
 }
 
