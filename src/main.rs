@@ -1,5 +1,8 @@
 use ark_ff::fields::{Field, Fp64, MontBackend, MontConfig};
 use rand::{rngs::ThreadRng, thread_rng};
+use std::{
+    fmt::Display,
+};
 
 trait Rand {
     fn rand(rng: &mut ThreadRng) -> Self;
@@ -29,10 +32,42 @@ impl<T: Field> Rand for T {
 
 type Fq = SmallField;
 
+#[derive(Clone, Debug, PartialEq)]
+struct Poly<F> {
+    coefs: Vec<F>,
+}
+
+impl RandN for Poly<Fq> {
+    fn rand(rng: &mut ThreadRng, len: u64) -> Poly<Fq> {
+        let mut coefs = vec![];
+        for _ in 0..len {
+            coefs.push(Fq::rand(rng));
+        }
+        Poly { coefs }
+    }
+}
+
+impl Display for Poly<Fq> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let zero = Fq::from(0);
+        for (expo, coef) in self.coefs.iter().enumerate() {
+            if *coef == zero {
+                continue;
+            };
+            match expo {
+                0 => write!(f, "{:?}", coef.0 .0[0])?,
+                1 => write!(f, " + {:?}x", coef.0 .0[0])?,
+                _ => write!(f, " + {:?}x^{:?}", coef.0 .0[0], expo)?,
+            }
+        }
+        Ok(())
+    }
+}
+
 fn main() {
-    type Fq = StarkField;
-    let p: Poly<Fq> = vec![rand_field::<Fq>(); 8];
-    println!("p = {:?}", p);
+    let mut rng = thread_rng();
+    let p: Poly<Fq> = Poly::rand(&mut rng, 10);
+    println!("p = {}", p);
 }
 
 #[cfg(test)]
