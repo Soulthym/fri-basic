@@ -1,0 +1,218 @@
+use std::fmt::Display;
+use std::ops::{Add, Div, Mul, Rem, Sub};
+use std::u128;
+
+#[derive(Debug, Clone, Copy)]
+pub struct PrimeField {
+    modulus: u128,
+    generator: u128,
+}
+
+trait Convert {
+    type Input;
+    fn new(&self, value: Input) -> FieldElement;
+    fn from(&self, value: Input) -> FieldElement;
+}
+
+impl Convert for PrimeField {
+    type Input = u128;
+    fn new(&self, value: Input) -> FieldElement {
+        FieldElement {
+            value: value % self.modulus,
+            field: *self,
+        }
+    }
+    fn from(&self, value: Input) -> FieldElement {
+        self.new(value)
+    }
+}
+
+impl Convert<i128> for PrimeField {
+    fn new<I128>(&self, value: i128) -> FieldElement {
+        let res = if value > 0 {
+            value % (self.modulus as i128)
+        } else {
+            value + self.modulus as i128
+        };
+        FieldElement {
+            value: res.try_into().unwrap(),
+            field: *self,
+        }
+    }
+    fn from<I128>(&self, value: i128) -> FieldElement {
+        FieldElement {
+            value: value % self.modulus,
+            field: *self,
+        }
+    }
+}
+
+impl Display for PrimeField {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "f(x) = {}^x % {}", self.generator, self.modulus)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct FieldElement {
+    value: u128,
+    field: PrimeField,
+}
+
+impl PartialOrd for FieldElement {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for FieldElement {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.value.cmp(&other.value)
+    }
+}
+
+impl PartialEq for FieldElement {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+    }
+}
+
+impl Eq for FieldElement {}
+
+trait Pow {
+    type Output;
+    fn pow(self, n: Self) -> Self::Output;
+}
+
+trait Inv {
+    type Output;
+    fn inverse(self) -> Self::Output;
+}
+
+impl Add<FieldElement> for FieldElement {
+    type Output = Self;
+    fn add(self, rhs: Self) -> Self::Output {
+        self.field.new(self.value + rhs.value)
+    }
+}
+
+impl Sub<FieldElement> for FieldElement {
+    type Output = Self;
+    fn sub(self, rhs: Self) -> Self::Output {
+        if self.value >= rhs.value {
+            self.field.new(self.value - rhs.value)
+        } else {
+            self.field.new(self.value + self.field.modulus - rhs.value)
+        }
+    }
+}
+
+impl Mul<FieldElement> for FieldElement {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.field.new(self.value * rhs.value)
+    }
+}
+
+impl Inv for FieldElement {
+    type Output = Self;
+    fn inverse(self) -> Self::Output {
+        let (mut t, mut new_t) = (0, 1);
+        let (mut r, mut new_r) = (self.field.modulus as i128, self.value as i128);
+        let mut quotient;
+        while new_r != 0 {
+            quotient = r / new_r;
+            (t, new_t) = (new_t, (t - (quotient * new_t)));
+            (r, new_r) = (new_r, r - quotient * new_r);
+        }
+        assert_eq!(r, 1);
+        t.into()
+    }
+}
+
+impl Div<FieldElement> for FieldElement {
+    type Output = Self;
+    fn div(self, rhs: Self) -> Self::Output {
+        self * rhs.inverse()
+    }
+}
+
+impl Rem for FieldElement {
+    type Output = Self;
+    fn rem(self, rhs: Self) -> Self::Output {
+        self.field.new(self.value % rhs.value)
+    }
+}
+
+impl Pow for FieldElement {
+    type Output = Self;
+    fn pow(self, mut n: Self) -> Self::Output {
+        let f = self.field;
+        let mut cur_pow = self;
+        let mut res = f.new(1);
+        while n > f.new(0) {
+            if n % f.new(2) != f.new(0) {
+                res = res * cur_pow;
+            }
+            n = n / f.new(2);
+            cur_pow = res * cur_pow;
+        }
+        res
+    }
+}
+
+impl Display for FieldElement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_small_prime_field() {
+        let f = PrimeField {
+            modulus: 17,
+            generator: 3,
+        };
+        println!("{}", f);
+        let val = f.new(19);
+        assert_eq!(val, f.new(2));
+        println!("{}", val);
+
+        let a = f.new(9);
+        let b = f.new(10);
+
+        println!("a = {:?}", a); // -1 = 16 mod 17
+        println!("b = {:?}", b); // -1 = 16 mod 17
+        println!("26 = {:?} [expect: 9]", f.new(26)); // 26 =  9 mod 17
+        println!("a - b = {:?} [expect: 16]", a - b); // -1 = 16 mod 17
+        println!("a + b = {:?} [expect: 2]", a + b); // 19 =  2 mod 17
+        println!("a * b = {:?} [expect: 5]", a * b); // 90 =  5 mod 17
+        println!("a^2 = {:?} [expect: 13]", a.pow(f.new(2))); // 81 = 13 mod 17
+        println!("b * 2 = {:?} [expect: 3]", b * f.new(2)); // 20 =  3 mod 17
+        println!("a / b = {:?} [expect: 6]", a / b);
+        println!("a ** b = {:?} [expect: 13]", a.pow(b)); // pow takes BigInt as input
+        assert_eq!(a, f.new(26)); // 26 =  9 mod 17
+        assert_eq!(a - b, f.new(16)); // -1 = 16 mod 17
+        assert_eq!(a + b, f.new(2)); // 19 =  2 mod 17
+        assert_eq!(a * b, f.new(5)); // 90 =  5 mod 17
+        assert_eq!(a.pow(f.new(2)), f.new(13)); // 81 = 13 mod 17
+        assert_eq!(b * f.new(2), f.new(3)); // 20 =  3 mod 17
+        assert_eq!(a / b, a * b.inverse()); // need to unwrap since `b` could be 0 which is not invertible
+        assert_eq!(a.pow(b), f.new(13)); // pow takes BigInt as input
+    }
+
+    #[test]
+    fn test_fri_prime_field() {
+        let f = PrimeField {
+            modulus: 3 * 2_u128.pow(30) + 1,
+            generator: 5,
+        };
+        println!("{}", f);
+        let val = f.new(19);
+        println!("{}", val);
+    }
+}
