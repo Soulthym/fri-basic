@@ -5,7 +5,5 @@ edition = "2021"
 
 [dependencies]
 ark-ff = "0.4.2"
-ark-poly = "0.4.2"
 ark-std = "0.4.0"
 rand = "0.8.5"
-starknet = { git = "https://github.com/xJonathanLEI/starknet-rs", version = "0.11.0" }
