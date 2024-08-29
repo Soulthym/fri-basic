@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::cmp::max;
 use std::fmt::Display;
-use std::ops::{Add, Div, Mul, Rem, Sub};
+use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 use ark_ff::fields::{Fp64, MontBackend, MontConfig};
 use ark_ff::{BigInt, Field};
@@ -43,6 +43,12 @@ trait StarkField {
 trait Variable<T> {
     fn x() -> Self;
     fn eval(x: T) -> T;
+}
+
+trait Arithmetic<T: Add + Sub + Neg + Mul + Div + Rem> {
+    fn pow(self, other: T) -> Self;
+    fn zero() -> Self;
+    fn one() -> Self;
 }
 
 type Int = BigInt<1>;
@@ -145,6 +151,60 @@ impl Variable<Fq> for Poly {
         Poly::from(vec![Fq::from(0), Fq::from(1)])
     }
     fn eval(x: Fq) -> Fq {
+        unimplemented!()
+    }
+}
+
+impl Arithmetic<Poly> for Poly {
+    fn zero() -> Self {
+        Poly::from(0)
+    }
+    fn one() -> Self {
+        Poly::from(1)
+    }
+    fn pow(self, other: Poly) -> Self {
+        unimplemented!()
+    }
+}
+
+impl Add<Poly> for Poly {
+    type Output = Self;
+    fn add(self, other: Poly) -> Self::Output {
+        unimplemented!()
+    }
+}
+
+impl Sub<Poly> for Poly {
+    type Output = Self;
+    fn sub(self, other: Poly) -> Self {
+        unimplemented!()
+    }
+}
+
+impl Neg for Poly {
+    type Output = Self;
+    fn neg(self) -> Self {
+        unimplemented!()
+    }
+}
+
+impl Mul<Poly> for Poly {
+    type Output = Self;
+    fn mul(self, other: Poly) -> Self {
+        unimplemented!()
+    }
+}
+
+impl Div<Poly> for Poly {
+    type Output = Self;
+    fn div(self, other: Poly) -> Self {
+        unimplemented!()
+    }
+}
+
+impl Rem<Poly> for Poly {
+    type Output = Self;
+    fn rem(self, other: Poly) -> Self {
         unimplemented!()
     }
 }
