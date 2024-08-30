@@ -69,8 +69,13 @@ trait DivMod<T> {
         self.divmod(other).1
     }
 }
-trait Arithmetic<T: Add + Sub + Neg + Mul + Div + Rem + Zero + One> {
-    fn pow(self, other: T) -> Self;
+
+trait Pow {
+    type Rhs;
+    fn pow(self, rhs: Self::Rhs) -> Self;
+}
+
+trait Arithmetic<T: Add + Sub + Neg + Mul + Div + Rem + Zero + One + Pow> {
     fn compose(self, other: T) -> Self;
 }
 
@@ -237,10 +242,28 @@ impl VecUtils for Poly {
     }
 }
 
-impl Arithmetic<Poly> for Poly {
-    fn pow(self, other: Poly) -> Self {
-        unimplemented!()
+impl Pow for Poly {
+    type Rhs = Poly;
+    fn pow(self, rhs: Self::Rhs) -> Self {
+        let mut other = rhs;
+        assert!(other >= Poly::zero());
+        let mut res = Poly::one();
+        let mut cur = self;
+        loop {
+            if other.clone() % 2.into() != 0.into() {
+                res = res * cur.clone();
+            }
+            other = other / 2.into();
+            if other == 0.into() {
+                break;
+            }
+            cur = cur.clone() * cur.clone();
+        }
+        res
     }
+}
+
+impl Arithmetic<Poly> for Poly {
     fn compose(self, other: Poly) -> Self {
         let mut res = Poly::new();
         for coef in self.coefs.iter().rev() {
