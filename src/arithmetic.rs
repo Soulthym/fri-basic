@@ -40,9 +40,14 @@ trait IsOrder {
     fn is_order(&self, n: u64) -> bool;
 }
 
-trait Variable {
+trait UniVariate {
     fn x() -> Self;
     fn eval(self, x: Fq) -> Fq;
+    fn monomial(degree: usize, coef: Fq) -> Self;
+    fn gen_linear_term(value: Fq) -> Self;
+    fn degree(&mut self) -> usize;
+    fn get_coef(&self, degree: usize) -> Fq;
+    fn compose(self, other: Self) -> Self;
 }
 
 trait VecUtils {
@@ -73,10 +78,6 @@ trait DivMod<T> {
 trait Pow {
     type Rhs;
     fn pow(self, rhs: Self::Rhs) -> Self;
-}
-
-trait Arithmetic<T: Add + Sub + Neg + Mul + Div + Rem + Zero + One + Pow> {
-    fn compose(self, other: T) -> Self;
 }
 
 type Int = BigInt<1>;
@@ -143,13 +144,6 @@ impl Poly {
         }
     }
 
-    fn get_coef(&self, degree: usize) -> Fq {
-        match self.coefs.get(degree) {
-            Some(value) => *value,
-            None => Fq::from(0),
-        }
-    }
-
     fn zeros(n: usize) -> Self {
         let mut res = Poly::new();
         for _ in 0..n {
@@ -189,7 +183,7 @@ impl Rand<Poly> for Poly {
     }
 }
 
-impl Variable for Poly {
+impl UniVariate for Poly {
     fn x() -> Self {
         Poly::from(vec![Fq::from(0), Fq::from(1)])
     }
@@ -197,6 +191,31 @@ impl Variable for Poly {
         let mut res = Fq::from(0);
         for coef in self.coefs.iter().rev() {
             res *= x + coef;
+        }
+        res
+    }
+    fn monomial(degree: usize, coef: Fq) -> Self {
+        let mut res = Poly::zeros(degree);
+        res.coefs.push(coef);
+        res
+    }
+    fn gen_linear_term(value: Fq) -> Self {
+        Poly::x() - Poly::from(value)
+    }
+    fn degree(&mut self) -> usize {
+        self.trimtrailingzeros();
+        self.coefs.len() - 1
+    }
+    fn get_coef(&self, degree: usize) -> Fq {
+        match self.coefs.get(degree) {
+            Some(value) => *value,
+            None => Fq::from(0),
+        }
+    }
+    fn compose(self, other: Poly) -> Self {
+        let mut res = Poly::new();
+        for coef in self.coefs.iter().rev() {
+            res = res * other.clone() + Poly::from(*coef);
         }
         res
     }
@@ -258,16 +277,6 @@ impl Pow for Poly {
                 break;
             }
             cur = cur.clone() * cur.clone();
-        }
-        res
-    }
-}
-
-impl Arithmetic<Poly> for Poly {
-    fn compose(self, other: Poly) -> Self {
-        let mut res = Poly::new();
-        for coef in self.coefs.iter().rev() {
-            res = res * other.clone() + Poly::from(*coef);
         }
         res
     }
@@ -445,8 +454,11 @@ mod tests {
 
     #[test]
     pub fn test_all() {
+        println!("stark_101_1()");
         stark_101_1();
+        println!("test_field()");
         test_field();
+        println!("test_poly()");
         test_poly();
     }
 
@@ -464,6 +476,11 @@ mod tests {
         println!("one? {:?}", one);
         println!("{}", one);
         println!("x + 1 = {}", x + 1.into());
+        let p1 = Poly::from(Fq::zero() - Fq::from(5)) + Poly::x();
+        let p2 = Poly::from(vec![Fq::from(0) - Fq::from(5), Fq::from(1)]);
+        println!("p1 = {}", p1);
+        println!("p2 = {}", p2);
+        assert_eq!(p1, p2);
     }
 
     pub fn stark_101_1() {
