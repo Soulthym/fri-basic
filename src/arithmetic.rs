@@ -36,21 +36,39 @@ trait AsName: Named {
     fn get_name(&self) -> &str;
 }
 
-trait StarkField {
+trait IsOrder {
     fn is_order(&self, n: u64) -> bool;
 }
 
-trait Variable<T> {
+trait Variable {
     fn x() -> Self;
-    fn eval(x: T) -> T;
+    fn eval(self, x: Fq) -> Fq;
 }
 
 trait VecUtils {
     fn zip_op(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
     fn ziplongest_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
     fn cross_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
+    fn trimtrailingzeros(&mut self);
 }
 
+trait DivMod<T> {
+    fn divmod(self, other: T) -> (Self, Self)
+    where
+        Self: Sized;
+    fn div(self, other: T) -> Self
+    where
+        Self: Sized,
+    {
+        self.divmod(other).0
+    }
+    fn modulus(self, other: T) -> Self
+    where
+        Self: Sized,
+    {
+        self.divmod(other).1
+    }
+}
 trait Arithmetic<T: Add + Sub + Neg + Mul + Div + Rem + Zero + One> {
     fn pow(self, other: T) -> Self;
     fn compose(self, other: T) -> Self;
@@ -77,7 +95,7 @@ impl Rand<Vec<Fq>> for Fq {
     }
 }
 
-impl StarkField for Fq {
+impl IsOrder for Fq {
     fn is_order(&self, n: u64) -> bool {
         assert!(n >= 1);
         let mut h = Fq::from(1);
@@ -166,12 +184,16 @@ impl Rand<Poly> for Poly {
     }
 }
 
-impl Variable<Fq> for Poly {
+impl Variable for Poly {
     fn x() -> Self {
         Poly::from(vec![Fq::from(0), Fq::from(1)])
     }
-    fn eval(x: Fq) -> Fq {
-        unimplemented!()
+    fn eval(self, x: Fq) -> Fq {
+        let mut res = Fq::from(0);
+        for coef in self.coefs.iter().rev() {
+            res *= x + coef;
+        }
+        res
     }
 }
 
@@ -204,6 +226,15 @@ impl VecUtils for Poly {
         }
         res
     }
+
+    fn trimtrailingzeros(&mut self) {
+        for coef in self.coefs.clone().iter().rev() {
+            if *coef != Fq::zero() {
+                break;
+            }
+            let _ = self.coefs.pop();
+        }
+    }
 }
 
 impl Arithmetic<Poly> for Poly {
@@ -216,6 +247,52 @@ impl Arithmetic<Poly> for Poly {
             res = res * other.clone() + Poly::from(*coef);
         }
         res
+    }
+}
+
+impl DivMod<Poly> for Poly {
+    fn divmod(self, other: Poly) -> (Self, Self) {
+        assert!(other != Poly::zero(), "Cannot divide by zero");
+        let mut lhs: Poly = self.clone();
+        lhs.trimtrailingzeros();
+        let mut rhs: Poly = other.clone();
+        rhs.trimtrailingzeros();
+        if lhs.coefs.is_empty() {
+            return (Poly::zero(), Poly::zero());
+        }
+        let mut rem = lhs;
+        let (lenl, lenr) = (rem.coefs.len(), other.coefs.len());
+        let (mut keep_going, mut deg_diff) = if lenl < lenr {
+            (true, lenl - lenr)
+        } else {
+            (false, lenr - lenl)
+        };
+        let mut quotient = Poly::zeros(deg_diff + 1);
+        let g_msc_inv = &rhs.coefs.last().unwrap().inverse().unwrap();
+        while keep_going {
+            let tmp = rem.coefs.last().unwrap() * g_msc_inv;
+            quotient.coefs[deg_diff] += tmp;
+            let mut last_non_zero = deg_diff - 1;
+            for (i, coef) in rhs.coefs.iter().enumerate() {
+                let i = i + deg_diff;
+                rem.coefs[i] -= tmp * coef;
+                if rem.coefs[i] != Fq::zero() {
+                    last_non_zero = i;
+                }
+                let mut rem_coefs = vec![];
+                for rem_coef in rem.coefs.iter().take(last_non_zero + 1) {
+                    rem_coefs.push(*rem_coef)
+                }
+                rem = Poly::from(rem_coefs);
+                (keep_going, deg_diff) = if lenl < lenr {
+                    (true, lenl - lenr)
+                } else {
+                    (false, lenr - lenl)
+                };
+            }
+        }
+        quotient.trimtrailingzeros();
+        (quotient, rem)
     }
 }
 
@@ -250,14 +327,14 @@ impl Mul<Poly> for Poly {
 impl Div<Poly> for Poly {
     type Output = Self;
     fn div(self, other: Poly) -> Self {
-        unimplemented!()
+        DivMod::div(self, other)
     }
 }
 
 impl Rem<Poly> for Poly {
     type Output = Self;
     fn rem(self, other: Poly) -> Self {
-        unimplemented!()
+        DivMod::modulus(self, other)
     }
 }
 
