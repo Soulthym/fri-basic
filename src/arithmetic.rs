@@ -8,9 +8,15 @@ use ark_ff::fields::{Fp64, MontBackend, MontConfig};
 use ark_ff::{BigInt, Field, One, PrimeField, Zero};
 use rand::prelude::random;
 
-trait Rand<T> {
+trait Rand {
+    type Multi;
     fn rand() -> Self;
-    fn rand_n(n: u64) -> T;
+    fn rand_n(n: u64) -> Self::Multi;
+}
+trait RandExc<T> {
+    type Multi;
+    fn rand_except(excluded: &Vec<T>) -> Self;
+    fn rand_n_except(n: u64, excluded: &Vec<T>) -> Self::Multi;
 }
 
 trait Repr {
@@ -88,7 +94,8 @@ type Int = BigInt<1>;
 pub struct FqConf;
 pub type Fq = Fp64<MontBackend<FqConf, 1>>;
 
-impl Rand<Vec<Fq>> for Fq {
+impl Rand for Fq {
+    type Multi = Vec<Self>;
     fn rand() -> Self {
         Fq::from(random::<u64>())
     }
@@ -96,6 +103,24 @@ impl Rand<Vec<Fq>> for Fq {
         let mut res = vec![];
         for _ in 1..n {
             res.push(Fq::rand());
+        }
+        res
+    }
+}
+
+impl RandExc<Fq> for Fq {
+    type Multi = Vec<Fq>;
+    fn rand_except(excluded: &Vec<Fq>) -> Self {
+        let mut res = Fq::rand();
+        while excluded.iter().any(|&excl| res == excl) {
+            res = Fq::rand();
+        }
+        res
+    }
+    fn rand_n_except(n: u64, excluded: &Vec<Fq>) -> Self::Multi {
+        let mut res = vec![];
+        for _ in 1..n {
+            res.push(Fq::rand_except(excluded));
         }
         res
     }
@@ -174,12 +199,41 @@ impl AsName for Poly {
     }
 }
 
-impl Rand<Poly> for Poly {
+impl Rand for Poly {
+    type Multi = Poly;
     fn rand() -> Self {
         Poly::from(Fq::rand())
     }
     fn rand_n(n: u64) -> Poly {
         Poly::from(Fq::rand_n(n))
+    }
+}
+
+impl RandExc<Fq> for Poly {
+    type Multi = Self;
+    fn rand_except(excluded: &Vec<Fq>) -> Self {
+        Poly::from(Fq::rand_except(excluded))
+    }
+    fn rand_n_except(n: u64, excluded: &Vec<Fq>) -> Self::Multi {
+        Poly::from(Fq::rand_n_except(n, excluded))
+    }
+}
+
+impl RandExc<Poly> for Poly {
+    type Multi = Self;
+    fn rand_except(excluded: &Vec<Poly>) -> Self {
+        let mut res = Poly::rand();
+        while excluded.iter().any(|excl| res == *excl) {
+            res = Poly::rand();
+        }
+        res
+    }
+    fn rand_n_except(n: u64, excluded: &Vec<Poly>) -> Self::Multi {
+        let mut res = Poly::rand_n(n);
+        while excluded.iter().any(|excl| res == *excl) {
+            res = Poly::rand_n(n);
+        }
+        res
     }
 }
 
