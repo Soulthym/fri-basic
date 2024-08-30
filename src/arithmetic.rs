@@ -53,6 +53,7 @@ trait VecUtils {
 
 trait Arithmetic<T: Add + Sub + Neg + Mul + Div + Rem + Zero + One> {
     fn pow(self, other: T) -> Self;
+    fn compose(self, other: T) -> Self;
 }
 
 type Int = BigInt<1>;
@@ -208,6 +209,13 @@ impl VecUtils for Poly {
 impl Arithmetic<Poly> for Poly {
     fn pow(self, other: Poly) -> Self {
         unimplemented!()
+    }
+    fn compose(self, other: Poly) -> Self {
+        let mut res = Poly::new();
+        for coef in self.coefs.iter().rev() {
+            res = res * other.clone() + Poly::from(*coef);
+        }
+        res
     }
 }
 
