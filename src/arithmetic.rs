@@ -395,28 +395,24 @@ impl From<u64> for Poly {
 impl Display for Poly {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut first = true;
-        for (expo, coef) in self.coefs.iter().enumerate() {
-            if !first {
-                write!(f, " + ")?;
-            }
-            if expo == 0 {
-                write!(f, "{}", coef)?;
+        for (exp, coef) in self.coefs.iter().enumerate().rev() {
+            if *coef == Fq::from(0) {
                 continue;
             }
-            let a = if *coef == Fq::from(0) {
+            let prefix = if first { "" } else { " + " };
+            let rcoef = if *coef != Fq::from(1) {
+                &format!("{}", coef)
+            } else {
                 ""
-            } else {
-                let i = coef.into_bigint();
-                &format!("{}", i)
             };
-            if expo == 1 {
-                write!(f, "{a}x")?;
-            } else {
-                write!(f, "{a}x^{expo}")?;
+            match exp {
+                0 => write!(f, "{}{}", prefix, coef)?,
+                1 => write!(f, "{}{}x", prefix, rcoef,)?,
+                _ => write!(f, "{}{}x^{}", prefix, rcoef, exp)?,
             }
             first = false;
         }
-        Ok(())
+        write!(f, " % {}", FqConf::MODULUS)
     }
 }
 
@@ -426,9 +422,9 @@ mod tests {
 
     #[test]
     pub fn test_all() {
+        stark_101_1();
         test_field();
         test_poly();
-        stark_101_1();
     }
 
     pub fn test_field() {
@@ -439,12 +435,12 @@ mod tests {
 
     pub fn test_poly() {
         let x = Poly::x().as_name("p");
-        let one = Poly::from(1).as_name("one");
+        let one = Poly::one();
         println!("x? {:?}", x);
         println!("{}", x);
         println!("one? {:?}", one);
         println!("{}", one);
-        println!("x + 1 = {}", x + one);
+        println!("x + 1 = {}", x + 1.into());
     }
 
     pub fn stark_101_1() {
