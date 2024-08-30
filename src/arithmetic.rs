@@ -48,7 +48,7 @@ trait Variable<T> {
 trait VecUtils {
     fn zip_op(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
     fn ziplongest_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
-    fn star_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
+    fn cross_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
 }
 
 trait Arithmetic<T: Add + Sub + Neg + Mul + Div + Rem + Zero + One> {
@@ -194,7 +194,7 @@ impl VecUtils for Poly {
         res
     }
 
-    fn star_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self {
+    fn cross_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self {
         let mut res = Poly::zeros(self.coefs.len() + other.coefs.len());
         for (lexp, lhs) in self.coefs.iter().enumerate() {
             for (rexp, rhs) in self.coefs.iter().enumerate() {
@@ -235,7 +235,7 @@ impl Neg for Poly {
 impl Mul<Poly> for Poly {
     type Output = Self;
     fn mul(self, other: Poly) -> Self {
-        unimplemented!()
+        self.cross_map(other, |a, b| a * b)
     }
 }
 
