@@ -1,10 +1,11 @@
 use std::any::Any;
 use std::cmp::max;
 use std::fmt::Display;
+use std::iter::zip;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
 use ark_ff::fields::{Fp64, MontBackend, MontConfig};
-use ark_ff::{BigInt, Field};
+use ark_ff::{BigInt, Field, One, PrimeField, Zero};
 use rand::prelude::random;
 
 trait Rand<T> {
@@ -21,6 +22,7 @@ trait Named: Repr {
         format!("{name} = {}", self.repr())
     }
 }
+
 trait AsName: Named {
     fn as_name(&self, name: &'static str) -> Self
     where
@@ -30,10 +32,8 @@ trait AsName: Named {
         new.set_name(name);
         new
     }
-    fn set_name(&mut self, name: &'static str) {}
-    fn get_name(&self) -> &str {
-        ""
-    }
+    fn set_name(&mut self, name: &'static str);
+    fn get_name(&self) -> &str;
 }
 
 trait StarkField {
@@ -45,10 +45,14 @@ trait Variable<T> {
     fn eval(x: T) -> T;
 }
 
-trait Arithmetic<T: Add + Sub + Neg + Mul + Div + Rem> {
+trait VecUtils {
+    fn zip_op(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
+    fn ziplongest_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
+    fn star_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
+}
+
+trait Arithmetic<T: Add + Sub + Neg + Mul + Div + Rem + Zero + One> {
     fn pow(self, other: T) -> Self;
-    fn zero() -> Self;
-    fn one() -> Self;
 }
 
 type Int = BigInt<1>;
@@ -114,6 +118,21 @@ impl Poly {
             name: "",
         }
     }
+
+    fn get_coef(&self, degree: usize) -> Fq {
+        match self.coefs.get(degree) {
+            Some(value) => *value,
+            None => Fq::from(0),
+        }
+    }
+
+    fn zeros(n: usize) -> Self {
+        let mut res = Poly::new();
+        for _ in 0..n {
+            res.coefs.push(Fq::zero());
+        }
+        res
+    }
 }
 
 impl Repr for Poly {
@@ -139,7 +158,7 @@ impl AsName for Poly {
 
 impl Rand<Poly> for Poly {
     fn rand() -> Self {
-        Poly::from(vec![Fq::rand()])
+        Poly::from(Fq::rand())
     }
     fn rand_n(n: u64) -> Poly {
         Poly::from(Fq::rand_n(n))
@@ -155,13 +174,38 @@ impl Variable<Fq> for Poly {
     }
 }
 
+impl VecUtils for Poly {
+    fn zip_op(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self {
+        let mut res = Poly::new();
+        for (left, right) in zip(self.coefs, other.coefs) {
+            res.coefs.push(op(left, right));
+        }
+        res
+    }
+
+    fn ziplongest_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self {
+        let mut res = Poly::new();
+        let longest = max(self.coefs.len(), other.coefs.len());
+        for degree in 0..longest {
+            let left = self.get_coef(degree);
+            let right = other.get_coef(degree);
+            res.coefs.push(op(left, right));
+        }
+        res
+    }
+
+    fn star_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self {
+        let mut res = Poly::zeros(self.coefs.len() + other.coefs.len());
+        for (lexp, lhs) in self.coefs.iter().enumerate() {
+            for (rexp, rhs) in self.coefs.iter().enumerate() {
+                res.coefs[lexp + rexp] = op(*lhs, *rhs);
+            }
+        }
+        res
+    }
+}
+
 impl Arithmetic<Poly> for Poly {
-    fn zero() -> Self {
-        Poly::from(0)
-    }
-    fn one() -> Self {
-        Poly::from(1)
-    }
     fn pow(self, other: Poly) -> Self {
         unimplemented!()
     }
@@ -170,21 +214,21 @@ impl Arithmetic<Poly> for Poly {
 impl Add<Poly> for Poly {
     type Output = Self;
     fn add(self, other: Poly) -> Self::Output {
-        unimplemented!()
+        self.ziplongest_map(other, |a, b| a + b)
     }
 }
 
 impl Sub<Poly> for Poly {
     type Output = Self;
     fn sub(self, other: Poly) -> Self {
-        unimplemented!()
+        self.ziplongest_map(other, |a, b| a - b)
     }
 }
 
 impl Neg for Poly {
     type Output = Self;
     fn neg(self) -> Self {
-        unimplemented!()
+        Poly::from(Fq::MODULUS) * self
     }
 }
 
@@ -209,10 +253,30 @@ impl Rem<Poly> for Poly {
     }
 }
 
-impl From<u64> for Poly {
-    fn from(value: u64) -> Self {
+impl Zero for Poly {
+    fn is_zero(&self) -> bool {
+        *self == Poly::zero()
+    }
+    fn zero() -> Self {
+        Poly::new()
+    }
+}
+
+impl One for Poly {
+    fn is_one(&self) -> bool {
+        *self == Poly::one()
+    }
+    fn one() -> Self {
+        Poly::from(Fq::ONE)
+    }
+}
+
+impl From<Vec<u64>> for Poly {
+    fn from(coefs: Vec<u64>) -> Self {
         let mut poly = Poly::new();
-        poly.coefs.push(Fq::from(value));
+        for coef in coefs {
+            poly.coefs.push(Fq::from(coef));
+        }
         poly
     }
 }
@@ -225,21 +289,40 @@ impl From<Vec<Fq>> for Poly {
     }
 }
 
+impl From<Fq> for Poly {
+    fn from(coef: Fq) -> Self {
+        Poly::from(vec![coef])
+    }
+}
+
+impl From<Int> for Poly {
+    fn from(coef: Int) -> Self {
+        Poly::from(Fq::from(coef))
+    }
+}
+
+impl From<u64> for Poly {
+    fn from(coef: u64) -> Self {
+        Poly::from(Fq::from(coef))
+    }
+}
+
 impl Display for Poly {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut first = true;
-        for (expo, coef) in self.coefs.iter().enumerate().rev() {
+        for (expo, coef) in self.coefs.iter().enumerate() {
             if !first {
                 write!(f, " + ")?;
             }
             if expo == 0 {
                 write!(f, "{}", coef)?;
-                return Ok(());
+                continue;
             }
-            let a = match coef.0 .0[0] {
-                1 => "",
-                // -1 => "-", impossible
-                _ => &format!("{}", coef),
+            let a = if *coef == Fq::from(0) {
+                ""
+            } else {
+                let i = coef.into_bigint();
+                &format!("{}", i)
             };
             if expo == 1 {
                 write!(f, "{a}x")?;
@@ -257,19 +340,28 @@ mod tests {
     use super::*;
 
     #[test]
+    pub fn test_all() {
+        test_field();
+        test_poly();
+        stark_101_1();
+    }
+
     pub fn test_field() {
         let g = Fq::from(FqConf::GENERATOR).pow::<Int>(Int::new([3 * 2_u64.pow(20)]));
         println!("{}", g.named("g"));
         assert!(g.is_order(1024));
     }
 
-    #[test]
     pub fn test_poly() {
-        let x = Poly::x().as_name("g");
+        let x = Poly::x().as_name("p");
+        let one = Poly::from(1).as_name("one");
+        println!("x? {:?}", x);
         println!("{}", x);
+        println!("one? {:?}", one);
+        println!("{}", one);
+        println!("x + 1 = {}", x + one);
     }
 
-    #[test]
     pub fn stark_101_1() {
         let p = Poly::from(vec![Fq::from(1), Fq::from(3141592)]).as_name("p");
         println!("{}", p);
