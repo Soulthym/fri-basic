@@ -93,8 +93,10 @@ trait Pow {
 type Int = BigInt<1>;
 
 #[derive(MontConfig)]
-#[modulus = "3221225473"]
-#[generator = "5"]
+#[modulus = "7"]
+#[generator = "3"]
+//#[modulus = "3221225473"]
+//#[generator = "5"]
 pub struct FqConf;
 pub type Fq = Fp64<MontBackend<FqConf, 1>>;
 
@@ -245,33 +247,38 @@ impl RandExc<Poly> for Poly {
 
 impl UniVariate for Poly {
     fn x() -> Self {
-        Poly::from(vec![Fq::from(0), Fq::from(1)])
+        Poly::from(vec![Fq::one(), Fq::zero()])
     }
     fn eval(self, x: Fq) -> Fq {
-        let mut res = Fq::from(0);
+        let mut res = Fq::zero();
         for coef in self.coefs.iter().rev() {
             res *= x + coef;
         }
         res
     }
+
     fn monomial(degree: usize, coef: Fq) -> Self {
         let mut res = Poly::zeros(degree);
         res.coefs.push(coef);
         res
     }
+
     fn gen_linear_term(value: Fq) -> Self {
         Poly::x() - Poly::from(value)
     }
+
     fn degree(&mut self) -> usize {
         self.trimtrailingzeros();
         self.coefs.len() - 1
     }
+
     fn get_coef(&self, degree: usize) -> Fq {
         match self.coefs.get(degree) {
             Some(value) => *value,
             None => Fq::from(0),
         }
     }
+
     fn compose(self, other: Poly) -> Self {
         let mut res = Poly::new();
         for coef in self.coefs.iter().rev() {
@@ -291,13 +298,21 @@ impl VecUtils for Poly {
     }
 
     fn ziplongest_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self {
+        println!("   |=== ziplongest_map ===");
         let mut res = Poly::new();
+        println!("   |res = {res}");
         let longest = max(self.coefs.len(), other.coefs.len());
+        println!("   |longest = {longest}");
         for degree in 0..longest {
+            println!("   |  degree = {degree}");
             let left = self.get_coef(degree);
+            println!("   |  left = {left}");
             let right = other.get_coef(degree);
+            println!("   |  right = {right}");
             res.coefs.push(op(left, right));
         }
+        println!("   |res = {res}");
+        println!("   |=======================");
         res
     }
 
@@ -391,42 +406,88 @@ impl DivMod<Poly> for Poly {
 impl Add<Poly> for Poly {
     type Output = Self;
     fn add(self, other: Poly) -> Self::Output {
-        self.ziplongest_map(other, |a, b| a + b)
+        println!("=== Poly + Poly ===");
+        println!("{self}");
+        println!("+");
+        println!("{other}");
+        println!("=");
+        let res = self.ziplongest_map(other, |a, b| a + b);
+        println!("{res}");
+        println!("===================");
+        res
     }
 }
 
 impl Sub<Poly> for Poly {
     type Output = Self;
     fn sub(self, other: Poly) -> Self {
-        self.ziplongest_map(other, |a, b| a - b)
+        println!("=== Poly - Poly ===");
+        println!("{self}");
+        println!("-");
+        println!("{other}");
+        println!("=");
+        let res = self + (-other);
+        println!("{res}");
+        println!("===================");
+        res
     }
 }
 
 impl Neg for Poly {
     type Output = Self;
     fn neg(self) -> Self {
-        Poly::from(Fq::MODULUS) * self
+        println!("=== -Poly ===");
+        println!("-({self})");
+        println!("=");
+        let res = Poly::from(Fq::from(Fq::MODULUS) - Fq::from(1)) * self;
+        println!("{res}");
+        println!("===================");
+        res
     }
 }
 
 impl Mul<Poly> for Poly {
     type Output = Self;
     fn mul(self, other: Poly) -> Self {
-        self.cross_map(other, |a, b| a * b)
+        println!("=== Poly * Poly ===");
+        println!("{self}");
+        println!("*");
+        println!("{other}");
+        println!("=");
+        let res = self.cross_map(other, |a, b| a * b);
+        println!("{res}");
+        println!("===================");
+        res
     }
 }
 
 impl Div<Poly> for Poly {
     type Output = Self;
     fn div(self, other: Poly) -> Self {
-        DivMod::div(self, other)
+        println!("=== Poly / Poly ===");
+        println!("{self}");
+        println!("/");
+        println!("{other}");
+        println!("=");
+        let res = DivMod::div(self, other);
+        println!("{res}");
+        println!("===================");
+        res
     }
 }
 
 impl Rem<Poly> for Poly {
     type Output = Self;
     fn rem(self, other: Poly) -> Self {
-        DivMod::modulus(self, other)
+        println!("=== Poly % Poly ===");
+        println!("{self}");
+        println!("%");
+        println!("{other}");
+        println!("=");
+        let res = DivMod::modulus(self, other);
+        println!("{res}");
+        println!("===================");
+        res
     }
 }
 
@@ -522,10 +583,10 @@ mod tests {
 
     #[test]
     pub fn test_all() {
-        println!("stark_101_1()");
-        stark_101_1();
-        println!("test_field()");
-        test_field();
+        //println!("stark_101_1()");
+        //stark_101_1();
+        //println!("test_field()");
+        //test_field();
         println!("test_poly()");
         test_poly();
         println!("test_div_random_poly()");
