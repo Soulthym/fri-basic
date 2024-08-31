@@ -13,17 +13,21 @@ trait Rand {
     fn rand() -> Self;
     fn rand_n(n: u64) -> Self::Multi;
 }
+
 trait RandExc<T> {
     type Multi;
     fn rand_except(excluded: &Vec<T>) -> Self;
     fn rand_n_except(n: u64, excluded: &Vec<T>) -> Self::Multi;
 }
 
-trait Repr {
+trait ReprMod {
     fn repr(&self) -> String;
+    fn reprmod(&self) -> String {
+        format!("{} % {}", self.repr(), FqConf::MODULUS)
+    }
 }
 
-trait Named: Repr {
+trait Named: ReprMod {
     fn named(&self, name: &str) -> String {
         format!("{name} = {}", self.repr())
     }
@@ -141,15 +145,18 @@ impl IsOrder for Fq {
     }
 }
 
-impl Repr for Fq {
+impl ReprMod for Fq {
     fn repr(&self) -> String {
-        format!("{self} % {}", FqConf::MODULUS)
+        let m = Fq::MODULUS.0[0] as i128;
+        let h = m / 2;
+        let rep = (self.0 .0[0] as i128 + h) % m - h;
+        format!("{}", rep)
     }
 }
 
 impl Named for Fq {
     fn named(&self, name: &str) -> String {
-        format!("{name} = {}", self.repr())
+        format!("{name} = {}", self.reprmod())
     }
 }
 
@@ -178,18 +185,17 @@ impl Poly {
     }
 }
 
-impl Repr for Poly {
+impl ReprMod for Poly {
     fn repr(&self) -> String {
-        format!("{} % {}", self, FqConf::MODULUS)
+        format!("{}", self)
     }
 }
 
 impl Named for Poly {
     fn named(&self, name: &str) -> String {
-        format!("{name}(x) = {}", self.repr())
+        format!("{name}(x) = {}", self.reprmod())
     }
 }
-
 impl AsName for Poly {
     fn set_name(&mut self, name: &'static str) {
         self.name = name;
@@ -482,21 +488,29 @@ impl Display for Poly {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut first = true;
         for (exp, coef) in self.coefs.iter().enumerate().rev() {
-            if *coef == Fq::from(0) {
+            let rep = coef.repr();
+            let mut rcoef = rep.as_str();
+            if rcoef == "0" {
                 continue;
             }
-            let prefix = if first { "" } else { " + " };
-            let rcoef = if *coef != Fq::from(1) {
-                &format!("{}", coef)
-            } else {
+            let prefix = if first {
                 ""
+            } else if rcoef.chars().nth(0).unwrap() == '-' {
+                rcoef = &rcoef[1..rcoef.len() - 1];
+                " - "
+            } else {
+                " + "
             };
+            let rcoef = if exp > 0 && rcoef == "1" { "" } else { rcoef };
             match exp {
-                0 => write!(f, "{}{}", prefix, coef)?,
+                0 => write!(f, "{}{}", prefix, rcoef)?,
                 1 => write!(f, "{}{}x", prefix, rcoef,)?,
                 _ => write!(f, "{}{}x^{}", prefix, rcoef, exp)?,
             }
             first = false;
+        }
+        if first {
+            write!(f, "0")?;
         }
         write!(f, " % {}", FqConf::MODULUS)
     }
@@ -514,6 +528,8 @@ mod tests {
         test_field();
         println!("test_poly()");
         test_poly();
+        println!("test_div_random_poly()");
+        test_div_random_poly();
     }
 
     pub fn test_field() {
@@ -523,18 +539,45 @@ mod tests {
     }
 
     pub fn test_poly() {
-        let x = Poly::x().as_name("p");
+        let x = Poly::x();
         let one = Poly::one();
         println!("x? {:?}", x);
         println!("{}", x);
         println!("one? {:?}", one);
         println!("{}", one);
         println!("x + 1 = {}", x + 1.into());
-        let p1 = Poly::from(Fq::zero() - Fq::from(5)) + Poly::x();
-        let p2 = Poly::from(vec![Fq::from(0) - Fq::from(5), Fq::from(1)]);
+        let g = Fq::from(FqConf::GENERATOR);
+        let p1 = Poly::x() - Poly::from(g);
+        let p2 = Poly::from(vec![-g, Fq::one()]);
+        let p3 = Poly::gen_linear_term(g);
+        println!("g = {}", g);
         println!("p1 = {}", p1);
         println!("p2 = {}", p2);
-        assert_eq!(p1, p2);
+        println!("p3 = {}", p3);
+        assert_eq!(
+            format!("{}", p1),
+            format!("x - {} % {}", g, FqConf::MODULUS)
+        );
+        assert!(p1 == p2 && p2 == p3);
+    }
+
+    pub fn test_div_random_poly() {
+        for _ in 0..20 {
+            let deg_a = random::<u64>() % 5;
+            let deg_b = random::<u64>() % 5;
+            println!("deg_a = {deg_a}");
+            println!("deg_b = {deg_b}");
+            let a = Poly::rand_n(deg_a);
+            let mut b = Poly::rand_n(deg_b);
+            println!("a = {a}");
+            println!("b = {b}");
+            let (q, mut r) = a.clone().divmod(b.clone());
+            let d = r.clone() + q * b.clone();
+            println!("assert!(r.degree() < b.degree())");
+            assert!(r.degree() < b.degree());
+            println!("assert!(d == a)");
+            assert!(d == a);
+        }
     }
 
     pub fn stark_101_1() {
