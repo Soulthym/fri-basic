@@ -13,17 +13,21 @@ trait Rand {
     fn rand() -> Self;
     fn rand_n(n: u64) -> Self::Multi;
 }
+
 trait RandExc<T> {
     type Multi;
-    fn rand_except(excluded: &Vec<T>) -> Self;
-    fn rand_n_except(n: u64, excluded: &Vec<T>) -> Self::Multi;
+    fn rand_except(excluded: &[T]) -> Self;
+    fn rand_n_except(n: u64, excluded: &[T]) -> Self::Multi;
 }
 
-trait Repr {
+trait ReprMod {
     fn repr(&self) -> String;
+    fn reprmod(&self) -> String {
+        format!("{} % {}", self.repr(), FqConf::MODULUS)
+    }
 }
 
-trait Named: Repr {
+trait Named: ReprMod {
     fn named(&self, name: &str) -> String {
         format!("{name} = {}", self.repr())
     }
@@ -56,24 +60,28 @@ trait UniVariate {
     fn compose(self, other: Self) -> Self;
 }
 
-trait VecUtils {
-    fn zip_op(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
-    fn ziplongest_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
-    fn cross_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self;
+trait VecUtils<F, Rhs = Self> {
+    fn zip_op(self, other: Rhs, op: impl Fn(F, F) -> F) -> Self;
+    fn ziplongest_map(self, other: Rhs, op: impl Fn(F, F) -> F) -> Self;
+    fn cross_map(self, other: Rhs, op: impl Fn(F, F) -> F) -> Self;
     fn trimtrailingzeros(&mut self);
 }
 
-trait DivMod<T> {
-    fn divmod(self, other: T) -> (Self, Self)
+trait Algebra<T, O> {
+    fn add(self, other: T) -> O;
+    fn neg(self) -> O;
+    fn sub(self, other: T) -> O;
+    fn mul(self, other: T) -> O;
+    fn divmod(self, other: T) -> (O, O)
     where
         Self: Sized;
-    fn div(self, other: T) -> Self
+    fn div(self, other: T) -> O
     where
         Self: Sized,
     {
         self.divmod(other).0
     }
-    fn modulus(self, other: T) -> Self
+    fn modulus(self, other: T) -> O
     where
         Self: Sized,
     {
@@ -97,7 +105,9 @@ pub type Fq = Fp64<MontBackend<FqConf, 1>>;
 impl Rand for Fq {
     type Multi = Vec<Self>;
     fn rand() -> Self {
-        Fq::from(random::<u64>())
+        let res = Fq::from(random::<u64>());
+        println!("{res}");
+        res
     }
     fn rand_n(n: u64) -> Vec<Fq> {
         let mut res = vec![];
@@ -110,14 +120,14 @@ impl Rand for Fq {
 
 impl RandExc<Fq> for Fq {
     type Multi = Vec<Fq>;
-    fn rand_except(excluded: &Vec<Fq>) -> Self {
+    fn rand_except(excluded: &[Fq]) -> Self {
         let mut res = Fq::rand();
         while excluded.iter().any(|&excl| res == excl) {
             res = Fq::rand();
         }
         res
     }
-    fn rand_n_except(n: u64, excluded: &Vec<Fq>) -> Self::Multi {
+    fn rand_n_except(n: u64, excluded: &[Fq]) -> Self::Multi {
         let mut res = vec![];
         for _ in 1..n {
             res.push(Fq::rand_except(excluded));
@@ -141,15 +151,18 @@ impl IsOrder for Fq {
     }
 }
 
-impl Repr for Fq {
+impl ReprMod for Fq {
     fn repr(&self) -> String {
-        format!("{self} % {}", FqConf::MODULUS)
+        let m = Fq::MODULUS.0[0] as i128;
+        let h = m / 2;
+        let rep = (self.0 .0[0] as i128 + h) % m - h;
+        format!("{}", rep)
     }
 }
 
 impl Named for Fq {
     fn named(&self, name: &str) -> String {
-        format!("{name} = {}", self.repr())
+        format!("{name} = {}", self.reprmod())
     }
 }
 
@@ -178,19 +191,19 @@ impl Poly {
     }
 }
 
-impl Repr for Poly {
+impl<T> ReprMod for Polynomial<T> {
     fn repr(&self) -> String {
-        format!("{} % {}", self, FqConf::MODULUS)
+        format!("{}", self)
     }
 }
 
-impl Named for Poly {
+impl<T> Named for Polynomial<T> {
     fn named(&self, name: &str) -> String {
-        format!("{name}(x) = {}", self.repr())
+        format!("{name}(x) = {}", self.reprmod())
     }
 }
 
-impl AsName for Poly {
+impl<T> AsName for Polynomial<T> {
     fn set_name(&mut self, name: &'static str) {
         self.name = name;
     }
@@ -199,36 +212,43 @@ impl AsName for Poly {
     }
 }
 
-impl Rand for Poly {
-    type Multi = Poly;
+impl<F> Rand for Polynomial<F>
+where
+    F: Zero + Rand + RandExc<F>,
+    Polynomial<F>: From<F>,
+{
+    type Multi = Polynomial<F>;
     fn rand() -> Self {
-        Poly::from(Fq::rand())
+        Polynomial::from(F::rand())
     }
-    fn rand_n(n: u64) -> Poly {
-        Poly::from(Fq::rand_n(n))
+    fn rand_n(n: u64) -> Polynomial<F> {
+        let leading = F::rand_except(&[F::zero()]);
+        let mut res = Polynomial::from(F::rand_n(n));
+        res.coefs.push(leading);
+        res
     }
 }
 
 impl RandExc<Fq> for Poly {
     type Multi = Self;
-    fn rand_except(excluded: &Vec<Fq>) -> Self {
+    fn rand_except(excluded: &[Fq]) -> Self {
         Poly::from(Fq::rand_except(excluded))
     }
-    fn rand_n_except(n: u64, excluded: &Vec<Fq>) -> Self::Multi {
+    fn rand_n_except(n: u64, excluded: &[Fq]) -> Self::Multi {
         Poly::from(Fq::rand_n_except(n, excluded))
     }
 }
 
 impl RandExc<Poly> for Poly {
     type Multi = Self;
-    fn rand_except(excluded: &Vec<Poly>) -> Self {
+    fn rand_except(excluded: &[Poly]) -> Self {
         let mut res = Poly::rand();
         while excluded.iter().any(|excl| res == *excl) {
             res = Poly::rand();
         }
         res
     }
-    fn rand_n_except(n: u64, excluded: &Vec<Poly>) -> Self::Multi {
+    fn rand_n_except(n: u64, excluded: &[Poly]) -> Self::Multi {
         let mut res = Poly::rand_n(n);
         while excluded.iter().any(|excl| res == *excl) {
             res = Poly::rand_n(n);
@@ -275,17 +295,17 @@ impl UniVariate for Poly {
     }
 }
 
-impl VecUtils for Poly {
-    fn zip_op(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self {
-        let mut res = Poly::new();
+impl<F> VecUtils<F> for Polynomial<F> {
+    fn zip_op(self, other: Polynomial<F>, op: impl Fn(F, F) -> F) -> Self {
+        let mut res = Polynomial::new();
         for (left, right) in zip(self.coefs, other.coefs) {
             res.coefs.push(op(left, right));
         }
         res
     }
 
-    fn ziplongest_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self {
-        let mut res = Poly::new();
+    fn ziplongest_map(self, other: Polynomial<F>, op: impl Fn(F, F) -> F) -> Self {
+        let mut res = Polynomial::new();
         let longest = max(self.coefs.len(), other.coefs.len());
         for degree in 0..longest {
             let left = self.get_coef(degree);
@@ -295,8 +315,8 @@ impl VecUtils for Poly {
         res
     }
 
-    fn cross_map(self, other: Poly, op: impl Fn(Fq, Fq) -> Fq) -> Self {
-        let mut res = Poly::zeros(self.coefs.len() + other.coefs.len());
+    fn cross_map(self, other: Polynomial<F>, op: impl Fn(F, F) -> F) -> Self {
+        let mut res = Polynomial::zeros(self.coefs.len() + other.coefs.len());
         for (lexp, lhs) in self.coefs.iter().enumerate() {
             for (rexp, rhs) in self.coefs.iter().enumerate() {
                 res.coefs[lexp + rexp] = op(*lhs, *rhs);
@@ -307,7 +327,7 @@ impl VecUtils for Poly {
 
     fn trimtrailingzeros(&mut self) {
         for coef in self.coefs.clone().iter().rev() {
-            if *coef != Fq::zero() {
+            if *coef != F::zero() {
                 break;
             }
             let _ = self.coefs.pop();
@@ -323,10 +343,10 @@ impl Pow for Poly {
         let mut res = Poly::one();
         let mut cur = self;
         loop {
-            if other.clone() % 2.into() != 0.into() {
+            if other.clone() % Poly::from(2) != Poly::zero() {
                 res = res * cur.clone();
             }
-            other = other / 2.into();
+            other = other / Poly::from(2);
             if other == 0.into() {
                 break;
             }
@@ -336,109 +356,173 @@ impl Pow for Poly {
     }
 }
 
-impl DivMod<Poly> for Poly {
-    fn divmod(self, other: Poly) -> (Self, Self) {
-        assert!(other != Poly::zero(), "Cannot divide by zero");
-        let mut lhs: Poly = self.clone();
+impl<T, F> Algebra<T, Polynomial<F>> for Polynomial<F>
+where
+    Polynomial<F>: From<T> + VecUtils<F> + Algebra<Polynomial<F>, Polynomial<F>>,
+    T: Clone + Add<T, Output = T> + Sub<T, Output = T> + Mul<T, Output = T> + Div<T, Output = T>,
+{
+    fn add(self, other: T) -> Polynomial<F> {
+        self.ziplongest_map(Polynomial::from(other), |a, b| a + b)
+    }
+
+    fn neg(self) -> Polynomial<F> {
+        Polynomial::from(F::MODULUS) * self
+    }
+
+    fn sub(self, other: T) -> Polynomial<F> {
+        self.ziplongest_map(Polynomial::from(other), |a, b| a - b)
+    }
+
+    fn mul(self, other: T) -> Polynomial<F> {
+        self.cross_map(Polynomial::from(other), |a, b| a * b)
+    }
+
+    fn divmod(self, other: T) -> (Polynomial<F>, Polynomial<F>) {
+        println!("DIVMOD:\n  self = {self}\n  other = {other}");
+        assert!(
+            Polynomial::from(other) != Polynomial::zero(),
+            "Cannot divide by zero"
+        );
+        let mut lhs: Polynomial<F> = self.clone();
         lhs.trimtrailingzeros();
-        let mut rhs: Poly = other.clone();
+        println!("lhs = {lhs}");
+        let mut rhs: Polynomial<F> = other.clone();
         rhs.trimtrailingzeros();
+        println!("rhs = {rhs}");
         if lhs.coefs.is_empty() {
-            return (Poly::zero(), Poly::zero());
+            return (Polynomial::zero(), Polynomial::zero());
         }
         let mut rem = lhs;
         let (lenl, lenr) = (rem.coefs.len(), other.coefs.len());
+        println!("lenl = {lenl}");
+        println!("lenr = {lenr}");
         let (mut keep_going, mut deg_diff) = if lenl < lenr {
-            (true, lenl - lenr)
-        } else {
             (false, lenr - lenl)
+        } else {
+            (true, lenl - lenr)
         };
-        let mut quotient = Poly::zeros(deg_diff + 1);
+        println!("deg_diff = {deg_diff}");
+        println!("keep_going = {keep_going}");
+        let mut quotient = Polynomial::zeros(deg_diff + 1);
+        println!("quotient = {quotient}");
         let g_msc_inv = &rhs.coefs.last().unwrap().inverse().unwrap();
+        println!("g_msc_inv = {g_msc_inv}");
         while keep_going {
+            println!("  while keep_going = {keep_going}");
             let tmp = rem.coefs.last().unwrap() * g_msc_inv;
+            println!("    tmp = {tmp}");
             quotient.coefs[deg_diff] += tmp;
+            println!("    quotient = {quotient}");
             let mut last_non_zero = deg_diff - 1;
+            println!("    last_non_zero = {last_non_zero}");
             for (i, coef) in rhs.coefs.iter().enumerate() {
+                println!("      for i = {i}");
+                println!("        coef = {coef}");
                 let i = i + deg_diff;
+                println!("        i = {i}");
                 rem.coefs[i] -= tmp * coef;
-                if rem.coefs[i] != Fq::zero() {
+                println!("        rem = {rem}");
+                if rem.coefs[i] != F::zero() {
                     last_non_zero = i;
+                    println!("        last_non_zero = {last_non_zero}");
                 }
                 let mut rem_coefs = vec![];
                 for rem_coef in rem.coefs.iter().take(last_non_zero + 1) {
                     rem_coefs.push(*rem_coef)
                 }
-                rem = Poly::from(rem_coefs);
+                rem = Polynomial::from(rem_coefs);
+                println!("        rem = {rem}");
                 (keep_going, deg_diff) = if lenl < lenr {
-                    (true, lenl - lenr)
-                } else {
                     (false, lenr - lenl)
+                } else {
+                    (true, lenl - lenr)
                 };
+                println!("        keep_going = {keep_going}");
+                println!("        deg_diff = {deg_diff}");
             }
         }
         quotient.trimtrailingzeros();
+        println!("rem = {rem}");
+        println!("quotient = {quotient}");
         (quotient, rem)
     }
 }
 
-impl Add<Poly> for Poly {
+impl<T, Rhs> Add<Rhs> for Polynomial<T>
+where
+    Polynomial<T>: From<Rhs> + Algebra<Polynomial<T>, Polynomial<T>>,
+{
     type Output = Self;
-    fn add(self, other: Poly) -> Self::Output {
-        self.ziplongest_map(other, |a, b| a + b)
+    fn add(self, rhs: Rhs) -> Self::Output {
+        Algebra::add(self, Self::from(rhs))
     }
 }
 
-impl Sub<Poly> for Poly {
+impl<T> Neg for Polynomial<T>
+where
+    Polynomial<T>: Algebra<Polynomial<T>, Polynomial<T>>,
+{
     type Output = Self;
-    fn sub(self, other: Poly) -> Self {
-        self.ziplongest_map(other, |a, b| a - b)
+    fn neg(self) -> Self::Output {
+        Algebra::neg(self)
     }
 }
 
-impl Neg for Poly {
+impl<T, Rhs> Sub<Rhs> for Polynomial<T>
+where
+    Polynomial<T>: From<Rhs> + Algebra<Polynomial<T>, Polynomial<T>>,
+{
     type Output = Self;
-    fn neg(self) -> Self {
-        Poly::from(Fq::MODULUS) * self
+    fn sub(self, rhs: Rhs) -> Self::Output {
+        Algebra::sub(self, Self::from(rhs))
     }
 }
 
-impl Mul<Poly> for Poly {
+impl<T, Rhs> Mul<Rhs> for Polynomial<T>
+where
+    Polynomial<T>: From<Rhs> + Algebra<Polynomial<T>, Polynomial<T>>,
+{
     type Output = Self;
-    fn mul(self, other: Poly) -> Self {
-        self.cross_map(other, |a, b| a * b)
+    fn mul(self, rhs: Rhs) -> Self::Output {
+        Algebra::mul(self, Self::from(rhs))
     }
 }
 
-impl Div<Poly> for Poly {
+impl<T, Rhs> Div<Rhs> for Polynomial<T>
+where
+    Polynomial<T>: From<Rhs> + Algebra<Polynomial<T>, Polynomial<T>>,
+{
     type Output = Self;
-    fn div(self, other: Poly) -> Self {
-        DivMod::div(self, other)
+    fn div(self, rhs: Rhs) -> Self::Output {
+        Algebra::div(self, Self::from(rhs))
     }
 }
 
-impl Rem<Poly> for Poly {
+impl<T, Rhs> Rem<Rhs> for Polynomial<T>
+where
+    Polynomial<T>: From<Rhs> + Algebra<Polynomial<T>, Polynomial<T>>,
+{
     type Output = Self;
-    fn rem(self, other: Poly) -> Self {
-        DivMod::modulus(self, other)
+    fn rem(self, rhs: Rhs) -> Self::Output {
+        Algebra::modulus(self, Self::from(rhs))
     }
 }
 
-impl Zero for Poly {
+impl<T> Zero for Polynomial<T> {
     fn is_zero(&self) -> bool {
-        *self == Poly::zero()
+        *self == Polynomial::zero()
     }
     fn zero() -> Self {
-        Poly::new()
+        Polynomial::new()
     }
 }
 
-impl One for Poly {
+impl<F> One for Polynomial<F> {
     fn is_one(&self) -> bool {
-        *self == Poly::one()
+        *self == Polynomial::one()
     }
     fn one() -> Self {
-        Poly::from(Fq::ONE)
+        Polynomial::from(F::ONE)
     }
 }
 
@@ -482,21 +566,29 @@ impl Display for Poly {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut first = true;
         for (exp, coef) in self.coefs.iter().enumerate().rev() {
-            if *coef == Fq::from(0) {
+            let rep = coef.repr();
+            let mut rcoef = rep.as_str();
+            if rcoef == "0" {
                 continue;
             }
-            let prefix = if first { "" } else { " + " };
-            let rcoef = if *coef != Fq::from(1) {
-                &format!("{}", coef)
-            } else {
+            let prefix = if first {
                 ""
+            } else if rcoef.chars().nth(0).unwrap() == '-' {
+                rcoef = &rcoef[1..rcoef.len() - 1];
+                " - "
+            } else {
+                " + "
             };
+            let rcoef = if rcoef == "1" { "" } else { rcoef };
             match exp {
-                0 => write!(f, "{}{}", prefix, coef)?,
+                0 => write!(f, "{}{}", prefix, rcoef)?,
                 1 => write!(f, "{}{}x", prefix, rcoef,)?,
                 _ => write!(f, "{}{}x^{}", prefix, rcoef, exp)?,
             }
             first = false;
+        }
+        if first {
+            write!(f, "0")?;
         }
         write!(f, " % {}", FqConf::MODULUS)
     }
@@ -514,6 +606,8 @@ mod tests {
         test_field();
         println!("test_poly()");
         test_poly();
+        println!("test_div_random_poly()");
+        test_div_random_poly();
     }
 
     pub fn test_field() {
@@ -523,18 +617,39 @@ mod tests {
     }
 
     pub fn test_poly() {
-        let x = Poly::x().as_name("p");
-        let one = Poly::one();
+        type P = Poly;
+        let mut x = P::x().as_name("p");
+        let one = P::one();
         println!("x? {:?}", x);
         println!("{}", x);
         println!("one? {:?}", one);
         println!("{}", one);
-        println!("x + 1 = {}", x + 1.into());
-        let p1 = Poly::from(Fq::zero() - Fq::from(5)) + Poly::x();
-        let p2 = Poly::from(vec![Fq::from(0) - Fq::from(5), Fq::from(1)]);
+        println!("x + 1 = {}", x + one);
+        let p1 = P::from(Fq::zero() - Fq::from(5)) + P::x();
+        let p2 = P::from(vec![Fq::from(0) - Fq::from(5), Fq::from(1)]);
         println!("p1 = {}", p1);
         println!("p2 = {}", p2);
         assert_eq!(p1, p2);
+        println!("x^2 + 1 = {}", x ^ 2 + one);
+    }
+
+    pub fn test_div_random_poly() {
+        for _ in 0..20 {
+            let deg_a = random::<u64>() % 5;
+            let deg_b = random::<u64>() % 5;
+            println!("deg_a = {deg_a}");
+            println!("deg_b = {deg_b}");
+            let a = Poly::rand_n(deg_a);
+            let mut b = Poly::rand_n(deg_b);
+            println!("a = {a}");
+            println!("b = {b}");
+            let (q, mut r) = a.clone().divmod(b.clone());
+            let d = r.clone() + q * b.clone();
+            println!("assert!(r.degree() < b.degree())");
+            assert!(r.degree() < b.degree());
+            println!("assert!(d == a)");
+            assert!(d == a);
+        }
     }
 
     pub fn stark_101_1() {
