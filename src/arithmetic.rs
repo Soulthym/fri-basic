@@ -107,11 +107,11 @@ where
 }
 
 impl Poly<FE> {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self { coeffs: vec![] }
     }
 
-    fn get_coeff(&self, i: usize) -> FE {
+    pub fn get_coeff(&self, i: usize) -> FE {
         if i < self.coeffs.len() {
             self.coeffs[i]
         } else {
@@ -119,21 +119,21 @@ impl Poly<FE> {
         }
     }
 
-    fn zero() -> Self {
+    pub fn zero() -> Self {
         Self::new()
     }
 
-    fn zeros(n: usize) -> Self {
+    pub fn zeros(n: usize) -> Self {
         Self {
             coeffs: vec![FE::zero(); n],
         }
     }
 
-    fn one() -> Self {
+    pub fn one() -> Self {
         Self::from(vec![FE::one()])
     }
 
-    fn trimtrailingzeros(&self) -> Self {
+    pub fn trimtrailingzeros(&self) -> Self {
         let mut res = self.clone();
         for c in self.coeffs.iter().rev() {
             if c != &FE::zero() {
@@ -143,8 +143,13 @@ impl Poly<FE> {
         }
         res
     }
-    fn degree(&self) -> isize {
+
+    pub fn degree(&self) -> isize {
         self.trimtrailingzeros().coeffs.len() as isize - 1
+    }
+
+    pub fn x() -> Self {
+        Self::from(vec![FE::zero(), FE::one()])
     }
 }
 
@@ -215,7 +220,19 @@ impl Repr for Poly<FE> {
             }
             match i {
                 0 => s.push_str(&format!("{:>2}", rc)),
-                1 => s.push_str(&format!("{:>2}x", rc)),
+                1 => s.push_str(&format!(
+                    "{}x",
+                    &format!(
+                        "{:>2}",
+                        if rc == "1" {
+                            "".to_string()
+                        } else if rc == "-1" {
+                            "-".to_string()
+                        } else {
+                            rc
+                        }
+                    )
+                )),
                 _ => s.push_str(&format!("{:>2}x^{:<2}", rc, i)),
             }
         }
@@ -510,7 +527,7 @@ mod tests {
         assert_eq!(q * p2 + r.clone(), p1);
     }
 
-    pub fn test_divmod_random_poly() {
+    fn test_divmod_random_poly() {
         for i in 0..1_000 {
             println!("--- i = {} ---", i);
             let deg_a = random::<u64>() % 255;
