@@ -1,15 +1,51 @@
+use lambdaworks_math::field::fields::u64_prime_field::{F17, FE17};
+use rand::random;
 use std::cmp::max;
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 
-use lambdaworks_math::field::{
-    element::*,
-    fields::{
-        fft_friendly::stark_252_prime_field::*,
-        u64_prime_field::{F17, FE17},
-    },
-    traits::{IsField, IsPrimeField},
-};
+trait Repr {
+    fn repr(&self) -> String;
+    fn dbg(&self) -> String {
+        self.repr()
+    }
+}
+
+trait ReprMod: Repr {
+    fn repr_mod(&self) -> String {
+        format!("{} % {}", self.repr(), MODULUS)
+    }
+}
+
+trait Rand {
+    type Multi;
+    fn rand() -> Self;
+    fn rand_n(n: u64) -> Self::Multi;
+}
+
+trait RandExc<T> {
+    type Multi;
+    fn rand_except(excluded: &Vec<T>) -> Self;
+    fn rand_n_except(n: u64, excluded: &Vec<T>) -> Self::Multi;
+}
+
+trait DivMod<T> {
+    fn divmod(&self, other: T) -> (Self, Self)
+    where
+        Self: Sized;
+    fn div(&self, other: T) -> Self
+    where
+        Self: Sized,
+    {
+        self.divmod(other).0
+    }
+    fn modulus(&self, other: T) -> Self
+    where
+        Self: Sized,
+    {
+        self.divmod(other).1
+    }
+}
 
 //type F = Stark252PrimeField;
 //type FE = FieldElement<F>;
@@ -17,13 +53,35 @@ type F = F17;
 type FE = FE17;
 const MODULUS: u64 = 17;
 
-trait Repr {
-    fn repr(&self) -> String;
+impl Rand for FE {
+    type Multi = Vec<Self>;
+    fn rand() -> Self {
+        FE::from(random::<u64>())
+    }
+    fn rand_n(n: u64) -> Vec<FE> {
+        let mut res = vec![];
+        for _ in 0..n {
+            res.push(FE::rand());
+        }
+        res
+    }
 }
 
-trait ReprMod: Repr {
-    fn repr_mod(&self) -> String {
-        format!("{} % {}", self.repr(), MODULUS)
+impl RandExc<FE> for FE {
+    type Multi = Vec<FE>;
+    fn rand_except(excluded: &Vec<FE>) -> Self {
+        let mut res = FE::rand();
+        while excluded.iter().any(|&excl| res == excl) {
+            res = FE::rand();
+        }
+        res
+    }
+    fn rand_n_except(n: u64, excluded: &Vec<FE>) -> Self::Multi {
+        let mut res = vec![];
+        for _ in 0..n {
+            res.push(FE::rand_except(excluded));
+        }
+        res
     }
 }
 
@@ -39,8 +97,11 @@ impl Repr for FE {
 
 impl ReprMod for FE {}
 
-#[derive(Debug, Clone, PartialEq)]
-struct Poly<F> {
+#[derive(Debug, Clone, Eq)]
+struct Poly<F>
+where
+    Self: PartialEq,
+{
     coeffs: Vec<F>,
 }
 
@@ -51,7 +112,7 @@ impl Poly<FE> {
 
     fn get_coeff(&self, i: usize) -> FE {
         if i < self.coeffs.len() {
-            self.coeffs[i].clone()
+            self.coeffs[i]
         } else {
             FE::zero()
         }
@@ -69,6 +130,67 @@ impl Poly<FE> {
 
     fn one() -> Self {
         Self::from(vec![FE::one()])
+    }
+
+    fn trimtrailingzeros(&self) -> Self {
+        let mut res = self.clone();
+        for c in self.coeffs.iter().rev() {
+            if c != &FE::zero() {
+                break;
+            }
+            res.coeffs.pop();
+        }
+        res
+    }
+    fn degree(&self) -> isize {
+        self.trimtrailingzeros().coeffs.len() as isize - 1
+    }
+}
+
+impl Rand for Poly<FE> {
+    type Multi = Poly<FE>;
+
+    fn rand() -> Self {
+        Poly::rand_n(random::<u64>() % 10)
+    }
+
+    fn rand_n(n: u64) -> Poly<FE> {
+        let leading = FE::rand_except(&vec![FE::zero()]);
+        let mut coeffs = FE::rand_n(n);
+        coeffs.push(leading);
+        Poly::from(coeffs)
+    }
+}
+
+impl RandExc<FE> for Poly<FE> {
+    type Multi = Self;
+
+    fn rand_except(excluded: &Vec<FE>) -> Self {
+        Poly::from(FE::rand_except(excluded))
+    }
+
+    fn rand_n_except(n: u64, excluded: &Vec<FE>) -> Self::Multi {
+        Poly::from(FE::rand_n_except(n, excluded))
+    }
+}
+
+impl RandExc<Poly<FE>> for Poly<FE> {
+    type Multi = Self;
+
+    fn rand_except(excluded: &Vec<Poly<FE>>) -> Self {
+        let mut res = Poly::rand();
+        while excluded.iter().any(|excl| res == *excl) {
+            res = Poly::rand();
+        }
+        res
+    }
+
+    fn rand_n_except(n: u64, excluded: &Vec<Poly<FE>>) -> Self::Multi {
+        let mut res = Poly::rand_n(n);
+        while excluded.iter().any(|excl| res == *excl) {
+            res = Poly::rand_n(n);
+        }
+        res
     }
 }
 
@@ -101,6 +223,18 @@ impl Repr for Poly<FE> {
         }
         s
     }
+    fn dbg(&self) -> String {
+        let mut res = String::new();
+        res.push('[');
+        for (i, c) in self.coeffs.iter().enumerate() {
+            match i {
+                0 => res.push_str(&c.repr()),
+                _ => res.push_str(&format!(", {}", c.repr())),
+            }
+        }
+        res.push(']');
+        res
+    }
 }
 
 impl ReprMod for Poly<FE> {}
@@ -123,6 +257,12 @@ impl From<i64> for Poly<FE> {
         let m = MODULUS as i64;
         let res = (i % m + m) % m;
         Self::from(vec![res as u64])
+    }
+}
+
+impl From<FE> for Poly<FE> {
+    fn from(value: FE) -> Self {
+        Self::from(vec![value])
     }
 }
 
@@ -150,14 +290,13 @@ impl Mul for Poly<FE> {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        let mut res = Poly::zeros(self.coeffs.len() + rhs.coeffs.len() - 1);
+        let mut res = Poly::zeros(self.coeffs.len() + rhs.coeffs.len() + 1);
         for (l_exp, l_coeff) in self.coeffs.iter().enumerate() {
             for (r_exp, r_coeff) in rhs.coeffs.iter().enumerate() {
                 res.coeffs[l_exp + r_exp] += l_coeff * r_coeff;
             }
-            println!("({}) * ({}) = {}", self, rhs, res);
         }
-        res
+        res.trimtrailingzeros()
     }
 }
 
@@ -166,6 +305,61 @@ impl Neg for Poly<FE> {
 
     fn neg(self) -> Self::Output {
         Poly::from(-1) * self
+    }
+}
+
+impl Sub for Poly<FE> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self + (-rhs)
+    }
+}
+
+impl DivMod<Poly<FE>> for Poly<FE> {
+    fn divmod(&self, other: Poly<FE>) -> (Self, Self)
+    where
+        Self: Sized,
+    {
+        let lhs = Box::new(self.trimtrailingzeros());
+        let rhs = Box::new(other.trimtrailingzeros());
+        if lhs.coeffs.is_empty() {
+            return (Poly::new(), Poly::new());
+        }
+        let mut rem = lhs;
+        let (mut lenl, mut lenr) = (rem.coeffs.len(), other.coeffs.len());
+        let mut quotient = if lenl >= lenr {
+            Poly::zeros(lenl - lenr + 1)
+        } else {
+            Poly::new()
+        };
+        let g_msc_inv = &rhs.coeffs.last().unwrap().inv().unwrap();
+        while lenl >= lenr {
+            let deg_dif = lenl - lenr;
+            let tmp = rem.coeffs.last().unwrap() * g_msc_inv;
+            quotient.coeffs[deg_dif] += tmp;
+            let mut last_non_zero: i64 = deg_dif as i64 - 1;
+            for (i, coef) in rhs.coeffs.iter().enumerate() {
+                let i = i + deg_dif;
+                rem.coeffs[i] = rem.coeffs[i] - tmp * coef;
+                if rem.coeffs[i] != FE::zero() {
+                    last_non_zero = i as i64;
+                }
+            }
+            let mut rem_coeffs = vec![];
+            for rem_coef in rem.coeffs.iter().take((last_non_zero + 1) as usize) {
+                rem_coeffs.push(*rem_coef)
+            }
+            *rem = Poly::from(rem_coeffs);
+            (lenl, lenr) = (rem.coeffs.len(), other.coeffs.len());
+        }
+        (quotient.trimtrailingzeros(), rem.trimtrailingzeros())
+    }
+}
+
+impl PartialEq for Poly<FE> {
+    fn eq(&self, other: &Self) -> bool {
+        self.trimtrailingzeros().coeffs == other.trimtrailingzeros().coeffs
     }
 }
 
@@ -212,6 +406,15 @@ mod tests {
         ]);
         println!("{:?}", p);
         println!("{}", p.repr());
+    }
+
+    fn test_rand_poly() {
+        for i in 0..2048 {
+            println!("--- i = {} ---", i);
+            let pn = Poly::rand_n(10);
+            println!("deg = {}, pn = {}", pn.degree(), pn);
+            assert_eq!(pn.degree(), 10);
+        }
     }
 
     fn test_poly_add() {
@@ -274,15 +477,66 @@ mod tests {
         assert_eq!(np, Poly::from(vec![MODULUS - 1, MODULUS - 2, MODULUS - 3]));
     }
 
+    fn test_poly_sub() {
+        let p1 = Poly::from(vec![1, 2, 3]);
+        let p2 = Poly::from(vec![4, 5, 6]);
+        println!("{}\n-\n{}", p1, p2);
+        let res = p1 - p2;
+        println!("=\n{}", res);
+        assert_eq!(res, Poly::from(vec![MODULUS - 3, MODULUS - 3, MODULUS - 3]));
+    }
+
+    fn test_poly_divmod() {
+        let p1 = Poly::from(vec![1, 2, 3, 4]);
+        let p2 = Poly::from(vec![1, 2, 3]);
+        println!("{}\n/\n{}", p1, p2);
+        let (q, r) = p1.clone().divmod(p2.clone());
+        println!("=\n({}) * ({}) + {}", q, p2, r);
+        assert_eq!(q * p2 + r.clone(), p1);
+    }
+
+    pub fn test_divmod_random_poly() {
+        for i in 0..1_000 {
+            println!("--- i = {} ---", i);
+            let deg_a = random::<u64>() % 255;
+            let deg_b = random::<u64>() % 255;
+            println!("deg_a = {deg_a}");
+            println!("deg_b = {deg_b}");
+            let a = Poly::rand_n_except(deg_a, &vec![Poly::zero()]);
+            let b = Poly::rand_n_except(deg_b, &vec![Poly::zero()]);
+            println!("a = {a}");
+            println!("b = {b}");
+            let (q, r) = a.clone().divmod(b.clone());
+            let d = r.clone() + q.clone() * b.clone();
+            println!(
+                "assert!(r.degree() < b.degree()): {} < {}",
+                r.clone().degree(),
+                b.clone().degree()
+            );
+            assert!(r.degree() < b.degree());
+            println!("assert!(d == a): {} == {}", d, a);
+            assert!(d == a);
+        }
+    }
+
     #[test]
-    fn test_all() {
+    fn test_sequence() {
         println!("\n\n=== TEST REPR ===");
         test_repr();
+        println!("\n\n=== TEST RAND POLY ===");
+        test_rand_poly();
         println!("\n\n=== TEST POLY ADD ===");
         test_poly_add();
         println!("\n\n=== TEST POLY MUL ===");
         test_poly_mul();
         println!("\n\n=== TEST POLY NEG ===");
         test_poly_neg();
+        println!("\n\n=== TEST POLY SUB ===");
+        test_poly_sub();
+        println!("\n\n=== TEST POLY DIVMOD ===");
+        test_poly_divmod();
+        println!("\n\n=== TEST DIV RANDOM POLY ===");
+        test_divmod_random_poly();
+        println!("\n\n=== ALL TESTS PASSED ===");
     }
 }
