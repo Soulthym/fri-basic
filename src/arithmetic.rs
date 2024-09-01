@@ -48,6 +48,11 @@ pub trait DivMod<T> {
     }
 }
 
+pub trait Pow<T> {
+    type Output;
+    fn pow(&self, n: T) -> Self::Output;
+}
+
 //pub type F = Stark252PrimeField;
 //pub type FE = FieldElement<F>;
 pub type F = F17;
@@ -397,6 +402,27 @@ impl PartialEq for Poly<FE> {
     }
 }
 
+impl Pow<u64> for Poly<FE> {
+    type Output = Self;
+
+    fn pow(&self, n: u64) -> Self::Output {
+        let mut n = n;
+        let mut res = Poly::one();
+        let mut cur = self.clone();
+        loop {
+            if n % 2 != 0 {
+                res = res.clone() * cur.clone();
+            }
+            n >>= 1;
+            if n == 0 {
+                break;
+            }
+            cur = cur.clone() * cur;
+        }
+        res
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -501,6 +527,29 @@ mod tests {
         assert_eq!(res, Poly::from(vec![4, 13, 22, 15]));
     }
 
+    fn test_poly_pow() {
+        let p = Poly::from(vec![1, 2, 3]);
+        println!("{}\n^{}\n", p, 0);
+        let res = p.pow(0);
+        println!("=\n{}", res);
+        assert_eq!(res, Poly::one());
+
+        println!("{}\n^{}\n", p, 1);
+        let res = p.pow(1);
+        println!("=\n{}", res);
+        assert_eq!(res, p.clone());
+
+        println!("{}\n^{}\n", p, 2);
+        let res = p.pow(2);
+        println!("=\n{}", res);
+        assert_eq!(res, p.clone() * p.clone());
+
+        println!("{}\n^{}\n", p, 3);
+        let res = p.pow(3);
+        println!("=\n{}", res);
+        assert_eq!(res, p.clone() * p.clone() * p.clone());
+    }
+
     fn test_poly_neg() {
         let p = Poly::from(vec![1, 2, 3]);
         println!("-({})", p);
@@ -561,6 +610,8 @@ mod tests {
         test_poly_add();
         println!("\n\n=== TEST POLY MUL ===");
         test_poly_mul();
+        println!("\n\n=== TEST POLY POW ===");
+        test_poly_pow();
         println!("\n\n=== TEST POLY NEG ===");
         test_poly_neg();
         println!("\n\n=== TEST POLY SUB ===");
