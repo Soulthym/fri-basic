@@ -1,4 +1,4 @@
-#![allow(unused_imports, dead_code)]
+#![allow(dead_code)]
 use lambdaworks_math::field::fields::u64_prime_field::{F17, FE17};
 use rand::random;
 use std::cmp::max;
@@ -355,6 +355,22 @@ impl DivMod<Poly<FE>> for Poly<FE> {
             (lenl, lenr) = (rem.coeffs.len(), other.coeffs.len());
         }
         (quotient.trimtrailingzeros(), rem.trimtrailingzeros())
+    }
+}
+
+impl Div for Poly<FE> {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        DivMod::div(&self, rhs)
+    }
+}
+
+impl Rem for Poly<FE> {
+    type Output = Self;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        DivMod::modulus(&self, rhs)
     }
 }
 
