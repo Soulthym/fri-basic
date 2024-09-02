@@ -1,5 +1,9 @@
 #![allow(dead_code)]
-use lambdaworks_math::field::fields::u64_prime_field::{F17, FE17};
+use lambdaworks_math::field::element::FieldElement;
+use lambdaworks_math::field::fields::mersenne31::field::{
+    Mersenne31Field, MERSENNE_31_PRIME_FIELD_ORDER,
+};
+//use lambdaworks_math::field::fields::u64_prime_field::{F17, FE17};
 use rand::random;
 use std::cmp::max;
 use std::fmt::Display;
@@ -53,11 +57,11 @@ pub trait Pow<T> {
     fn pow(&self, n: T) -> Self::Output;
 }
 
-//pub type F = Stark252PrimeField;
-//pub type FE = FieldElement<F>;
-pub type F = F17;
-pub type FE = FE17;
-pub const MODULUS: u64 = 17;
+pub type F = Mersenne31Field;
+pub type FE = FieldElement<F>;
+//pub type F = F17;
+//pub type FE = FE17;
+pub const MODULUS: u64 = MERSENNE_31_PRIME_FIELD_ORDER as u64;
 
 impl Rand for FE {
     type Multi = Vec<Self>;
@@ -425,7 +429,7 @@ mod tests {
 
     fn test_repr() {
         type P = Poly<FE>;
-        for i in 0..MODULUS {
+        for i in 0..10 {
             let fe = FE::from(i);
             println!("{}: {:?}", i, fe);
             println!("{}", fe.repr());
