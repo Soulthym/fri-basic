@@ -209,7 +209,7 @@ impl Repr for Poly<FE> {
     fn repr(&self) -> String {
         let mut s = String::new();
         let mut first = true;
-        for (i, c) in self.coeffs.iter().enumerate().rev() {
+        for (i, c) in self.coeffs.iter().enumerate() {
             if c == &FE::zero() {
                 continue;
             }
@@ -223,22 +223,18 @@ impl Repr for Poly<FE> {
                 true => first = false,
                 false => s.push_str(sign),
             }
+            if i > 0 {
+                if rc == "1" {
+                    rc = "".to_string()
+                } else if rc == "-1" {
+                    rc = "-".to_string()
+                };
+            }
+            s.push_str(&format!("{:>2}", rc));
             match i {
-                0 => s.push_str(&format!("{:>2}", rc)),
-                1 => s.push_str(&format!(
-                    "{}x",
-                    &format!(
-                        "{:>2}",
-                        if rc == "1" {
-                            "".to_string()
-                        } else if rc == "-1" {
-                            "-".to_string()
-                        } else {
-                            rc
-                        }
-                    )
-                )),
-                _ => s.push_str(&format!("{:>2}x^{:<2}", rc, i)),
+                0 => (),
+                1 => s.push('x'),
+                _ => s.push_str(&format!("x^{:<2}", i)),
             }
         }
         if first {
