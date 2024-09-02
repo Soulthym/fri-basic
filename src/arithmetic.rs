@@ -18,7 +18,7 @@ pub trait Repr {
 
 pub trait ReprMod: Repr {
     fn repr_mod(&self) -> String {
-        format!("{} % {}", self.repr(), MODULUS)
+        format!("{} % {}", self.repr(), MOD)
     }
 }
 
@@ -61,7 +61,10 @@ pub type F = Mersenne31Field;
 pub type FE = FieldElement<F>;
 //pub type F = F17;
 //pub type FE = FE17;
-pub const MODULUS: u64 = MERSENNE_31_PRIME_FIELD_ORDER as u64;
+pub const MOD: u64 = MERSENNE_31_PRIME_FIELD_ORDER as u64;
+pub fn gen() -> FE {
+    FE::from(7)
+}
 
 impl Rand for FE {
     type Multi = Vec<Self>;
@@ -97,7 +100,7 @@ impl RandExc<FE> for FE {
 
 impl Repr for FE {
     fn repr(&self) -> String {
-        let m = MODULUS as i128;
+        let m = MOD as i128;
         let h = m / 2;
         let v: i128 = (*self.value()).into();
         let rep = (v + h) % m - h;
@@ -277,7 +280,7 @@ where
 
 impl From<i64> for Poly<FE> {
     fn from(i: i64) -> Self {
-        let m = MODULUS as i64;
+        let m = MOD as i64;
         let res = (i % m + m) % m;
         Self::from(vec![res as u64])
     }
@@ -444,23 +447,23 @@ mod tests {
         println!("{}", p.repr());
         let p = P::from(vec![
             0,
-            MODULUS - 1,
-            MODULUS - 2,
-            MODULUS - 3,
-            MODULUS - 4,
-            MODULUS - 5,
-            MODULUS - 6,
-            MODULUS - 7,
-            MODULUS - 8,
-            MODULUS - 9,
-            MODULUS - 10,
-            MODULUS - 11,
-            MODULUS - 12,
-            MODULUS - 13,
-            MODULUS - 14,
-            MODULUS - 15,
-            MODULUS - 16,
-            MODULUS - 17,
+            MOD - 1,
+            MOD - 2,
+            MOD - 3,
+            MOD - 4,
+            MOD - 5,
+            MOD - 6,
+            MOD - 7,
+            MOD - 8,
+            MOD - 9,
+            MOD - 10,
+            MOD - 11,
+            MOD - 12,
+            MOD - 13,
+            MOD - 14,
+            MOD - 15,
+            MOD - 16,
+            MOD - 17,
         ]);
         println!("{:?}", p);
         println!("{}", p.repr());
@@ -555,7 +558,7 @@ mod tests {
         println!("-({})", p);
         let np = -p;
         println!("={}", np);
-        assert_eq!(np, Poly::from(vec![MODULUS - 1, MODULUS - 2, MODULUS - 3]));
+        assert_eq!(np, Poly::from(vec![MOD - 1, MOD - 2, MOD - 3]));
     }
 
     fn test_poly_sub() {
@@ -564,7 +567,7 @@ mod tests {
         println!("{}\n-\n{}", p1, p2);
         let res = p1 - p2;
         println!("=\n{}", res);
-        assert_eq!(res, Poly::from(vec![MODULUS - 3, MODULUS - 3, MODULUS - 3]));
+        assert_eq!(res, Poly::from(vec![MOD - 3, MOD - 3, MOD - 3]));
     }
 
     fn test_poly_divmod() {
