@@ -1,62 +1,10 @@
-use ark_ff::{BigInt, Field, One, PrimeField, Zero};
-
 use crate::field::*;
 use crate::traits::*;
+use ark_ff::{Field, One, Zero};
 use rand::random;
 use std::cmp::max;
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
-
-impl Rand for FE {
-    type Multi = Vec<Self>;
-    fn rand() -> Self {
-        FE::from(random::<u64>())
-    }
-    fn rand_n(n: u64) -> Vec<FE> {
-        let mut res = vec![];
-        for _ in 0..n {
-            res.push(FE::rand());
-        }
-        res
-    }
-}
-
-impl RandExc<FE> for FE {
-    type Multi = Vec<FE>;
-    fn rand_except(excluded: &Vec<FE>) -> Self {
-        let mut res = FE::rand();
-        while excluded.iter().any(|&excl| res == excl) {
-            res = FE::rand();
-        }
-        res
-    }
-    fn rand_n_except(n: u64, excluded: &Vec<FE>) -> Self::Multi {
-        let mut res = vec![];
-        for _ in 0..n {
-            res.push(FE::rand_except(excluded));
-        }
-        res
-    }
-}
-
-impl Repr for FE {
-    fn repr(&self) -> String {
-        let m = MOD as i128;
-        let h = m / 2;
-        let v = self.into_bigint().0[0] as i128;
-        let rep = (v + h) % m - h;
-        format!("{}", rep)
-    }
-}
-
-impl ReprMod for FE {}
-
-impl Pow<u64> for FE {
-    type Output = Self;
-    fn pow(&self, n: u64) -> Self::Output {
-        ark_ff::Field::pow::<&BigInt<1>>(self, &BigInt::from(n))
-    }
-}
 
 #[derive(Debug, Clone, Eq)]
 pub struct Poly<F>

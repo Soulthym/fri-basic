@@ -1,4 +1,5 @@
 use crate::field::MOD;
+
 pub trait Repr {
     fn repr(&self) -> String;
     fn dbg(&self) -> String {
