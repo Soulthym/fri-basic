@@ -10,8 +10,10 @@ pub struct FqConfig;
 pub type FE = Fp64<MontBackend<FqConfig, 1>>;
 pub const MOD: u64 = 18446744069414584321;
 pub fn gen() -> FE {
-    let base = FE::from(BigInt!("7277203076849721926"));
-    base
+    FE::from(BigInt!("7277203076849721926"))
+}
+pub fn mul_gen() -> FE {
+    FE::from(BigInt!("14293326489335486720"))
 }
 
 impl Rand for FE {
@@ -99,7 +101,7 @@ impl SubGroup for FE {
 }
 
 #[cfg(test)]
-mod tests {
+mod field_tests {
     use super::*;
 
     #[test]

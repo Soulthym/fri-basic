@@ -11,7 +11,7 @@ pub struct Poly<F>
 where
     Self: PartialEq,
 {
-    coeffs: Vec<F>,
+    pub coeffs: Vec<F>,
 }
 
 impl Poly<FE> {
@@ -80,9 +80,13 @@ impl Rand for Poly<FE> {
 
     fn rand_n(n: u64) -> Poly<FE> {
         let leading = FE::rand_except(&vec![FE::zero()]);
-        let mut coeffs = FE::rand_n(n);
-        coeffs.push(leading);
-        Poly::from(coeffs)
+        if n == 0 {
+            Poly::from(vec![leading])
+        } else {
+            let mut coeffs = FE::rand_n(n - 1);
+            coeffs.push(leading);
+            Poly::from(coeffs)
+        }
     }
 }
 
@@ -343,7 +347,7 @@ impl Pow<u64> for Poly<FE> {
 }
 
 #[cfg(test)]
-mod tests {
+mod poly_tests {
     use super::*;
 
     fn test_repr() {
@@ -390,7 +394,7 @@ mod tests {
             println!("--- i = {} ---", i);
             let pn = Poly::rand_n(10);
             println!("deg = {}, pn = {}", pn.degree(), pn);
-            assert_eq!(pn.degree(), 10);
+            assert_eq!(pn.degree(), 9);
         }
     }
 
