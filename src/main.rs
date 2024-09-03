@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 mod arithmetic;
+mod field;
+mod traits;
 use arithmetic::*;
+use field::*;
+use traits::*;
 
 type P = Poly<FE>;
 

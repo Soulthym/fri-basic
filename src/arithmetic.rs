@@ -1,68 +1,11 @@
-use ark_ff::fields::{Fp64, MontBackend, MontConfig};
 use ark_ff::{BigInt, Field, One, PrimeField, Zero};
 
+use crate::field::*;
+use crate::traits::*;
 use rand::random;
 use std::cmp::max;
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
-
-pub trait Repr {
-    fn repr(&self) -> String;
-    fn dbg(&self) -> String {
-        self.repr()
-    }
-}
-
-pub trait ReprMod: Repr {
-    fn repr_mod(&self) -> String {
-        format!("{} % {}", self.repr(), MOD)
-    }
-}
-
-pub trait Rand {
-    type Multi;
-    fn rand() -> Self;
-    fn rand_n(n: u64) -> Self::Multi;
-}
-
-pub trait RandExc<T> {
-    type Multi;
-    fn rand_except(excluded: &Vec<T>) -> Self;
-    fn rand_n_except(n: u64, excluded: &Vec<T>) -> Self::Multi;
-}
-
-pub trait DivMod<T> {
-    fn divmod(&self, other: T) -> (Self, Self)
-    where
-        Self: Sized;
-    fn div(&self, other: T) -> Self
-    where
-        Self: Sized,
-    {
-        self.divmod(other).0
-    }
-    fn modulus(&self, other: T) -> Self
-    where
-        Self: Sized,
-    {
-        self.divmod(other).1
-    }
-}
-
-pub trait Pow<T> {
-    type Output;
-    fn pow(&self, n: T) -> Self::Output;
-}
-
-#[derive(MontConfig)]
-#[modulus = "18446744069414584321"]
-#[generator = "7"]
-pub struct FqConfig;
-pub type FE = Fp64<MontBackend<FqConfig, 1>>;
-pub const MOD: u64 = 18446744069414584321;
-pub fn gen() -> FE {
-    FqConfig::GENERATOR
-}
 
 impl Rand for FE {
     type Multi = Vec<Self>;
