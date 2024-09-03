@@ -88,6 +88,8 @@ impl SubGroup for FE {
     }
 
     fn subgen(log2size: u64) -> FE {
+        // based on
+        // https://github.com/0xPolygonZero/plonky2/blob/bf95c10cbf44a7759586e22f3b76709bcca3c2ba/field/src/types.rs#L268
         assert!(
             log2size < 32,
             "log2size must be less than the 2-adicity of m: 32"

@@ -253,6 +253,8 @@ impl DivMod<Poly<FE>> for Poly<FE> {
     where
         Self: Sized,
     {
+        // translated verbatim from
+        // https://github.com/starkware-industries/stark101/blob/8addc2c7f4a0731299cad97dc5ca35d83b4b295f/tutorial/polynomial.py#L177
         let lhs = Box::new(self.trimtrailingzeros());
         let rhs = Box::new(other.trimtrailingzeros());
         if lhs.coeffs.is_empty() {
