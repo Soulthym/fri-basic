@@ -134,12 +134,14 @@ fn fri_commit(
         commit(transcript, &next_layer, &mut next_merkle);
         fri_merkles.push(next_merkle);
     }
+    let last_value = fri_layers.last().unwrap().first().unwrap();
+    transcript.answer(last_value);
 }
 
 fn main() {
-    let log2size: u64 = 6;
+    let log2size: u64 = 10;
     let len: u64 = 1 << log2size;
-    let blowup: u64 = 2;
+    let blowup: u64 = 3;
     let log2size_extended: u64 = log2size + blowup;
     let poly = P::rand_n(len);
     let mut merkle = Merkle::new();
