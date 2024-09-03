@@ -1,9 +1,6 @@
-#![allow(dead_code)]
-use lambdaworks_math::field::element::FieldElement;
-use lambdaworks_math::field::fields::mersenne31::field::{
-    Mersenne31Field, MERSENNE_31_PRIME_FIELD_ORDER,
-};
-//use lambdaworks_math::field::fields::u64_prime_field::{F17, FE17};
+use ark_ff::fields::{Fp64, MontBackend, MontConfig};
+use ark_ff::{BigInt, Field, One, PrimeField, Zero};
+
 use rand::random;
 use std::cmp::max;
 use std::fmt::Display;
@@ -57,13 +54,14 @@ pub trait Pow<T> {
     fn pow(&self, n: T) -> Self::Output;
 }
 
-pub type F = Mersenne31Field;
-pub type FE = FieldElement<F>;
-//pub type F = F17;
-//pub type FE = FE17;
-pub const MOD: u64 = MERSENNE_31_PRIME_FIELD_ORDER as u64;
+#[derive(MontConfig)]
+#[modulus = "18446744069414584321"]
+#[generator = "7"]
+pub struct FqConfig;
+pub type FE = Fp64<MontBackend<FqConfig, 1>>;
+pub const MOD: u64 = 18446744069414584321;
 pub fn gen() -> FE {
-    FE::from(7)
+    FqConfig::GENERATOR
 }
 
 impl Rand for FE {
@@ -102,13 +100,20 @@ impl Repr for FE {
     fn repr(&self) -> String {
         let m = MOD as i128;
         let h = m / 2;
-        let v: i128 = (*self.value()).into();
+        let v = self.into_bigint().0[0] as i128;
         let rep = (v + h) % m - h;
         format!("{}", rep)
     }
 }
 
 impl ReprMod for FE {}
+
+impl Pow<u64> for FE {
+    type Output = Self;
+    fn pow(&self, n: u64) -> Self::Output {
+        ark_ff::Field::pow::<&BigInt<1>>(self, &BigInt::from(n))
+    }
+}
 
 #[derive(Debug, Clone, Eq)]
 pub struct Poly<F>
@@ -280,8 +285,8 @@ where
 
 impl From<i64> for Poly<FE> {
     fn from(i: i64) -> Self {
-        let m = MOD as i64;
-        let res = (i % m + m) % m;
+        let m = MOD as i128;
+        let res = (i as i128 % m + m) % m;
         Self::from(vec![res as u64])
     }
 }
@@ -359,7 +364,7 @@ impl DivMod<Poly<FE>> for Poly<FE> {
         } else {
             Poly::new()
         };
-        let g_msc_inv = &rhs.coeffs.last().unwrap().inv().unwrap();
+        let g_msc_inv = &Field::inverse(rhs.coeffs.last().unwrap()).unwrap();
         while lenl >= lenr {
             let deg_dif = lenl - lenr;
             let tmp = rem.coeffs.last().unwrap() * g_msc_inv;
