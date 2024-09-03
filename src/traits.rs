@@ -46,4 +46,11 @@ pub trait DivMod<T> {
 pub trait Pow<T> {
     type Output;
     fn pow(&self, n: T) -> Self::Output;
+    fn pow_2_pow(&self, powlog: u64) -> Self::Output;
+}
+
+pub trait SubGroup {
+    type Output;
+    fn order(&self) -> u64;
+    fn subgen(size: u64) -> Self::Output;
 }

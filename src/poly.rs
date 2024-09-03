@@ -330,6 +330,14 @@ impl Pow<u64> for Poly<FE> {
         }
         res
     }
+
+    fn pow_2_pow(&self, powlog: u64) -> Self::Output {
+        let mut acc = self.clone();
+        for _ in 0..powlog {
+            acc = acc.clone() * acc;
+        }
+        acc
+    }
 }
 
 #[cfg(test)]
