@@ -59,6 +59,16 @@ impl Poly<FE> {
     pub fn x() -> Self {
         Self::from(vec![FE::zero(), FE::one()])
     }
+
+    pub fn eval(&self, x: FE) -> FE {
+        let mut res = FE::zero();
+        let mut x_pow = FE::one();
+        for c in self.coeffs.iter() {
+            res += c * &x_pow;
+            x_pow *= x;
+        }
+        res
+    }
 }
 
 impl Rand for Poly<FE> {
@@ -499,6 +509,17 @@ mod tests {
         }
     }
 
+    fn test_poly_eval() {
+        let p = Poly::from(vec![1, 2, 3]);
+        let expected = [1, 6, 17, 34, 57, 86, 121, 162, 209, 262, 321];
+        for i in 0..10 {
+            let x = FE::from(i);
+            let res = p.eval(x);
+            println!("{}: {} = {}", i, p, res);
+            assert_eq!(res, FE::from(expected[i as usize]));
+        }
+    }
+
     #[test]
     fn test_sequence() {
         println!("\n\n=== TEST REPR ===");
@@ -519,6 +540,8 @@ mod tests {
         test_poly_divmod();
         println!("\n\n=== TEST DIV RANDOM POLY ===");
         test_divmod_random_poly();
+        println!("\n\n=== TEST POLY EVAL ===");
+        test_poly_eval();
         println!("\n\n=== ALL TESTS PASSED ===");
     }
 }

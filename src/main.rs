@@ -1,9 +1,11 @@
-#![allow(dead_code)]
-mod arithmetic;
+#![allow(dead_code, unused_imports)]
 mod field;
+mod fri;
+mod poly;
 mod traits;
-use arithmetic::*;
 use field::*;
+use fri::*;
+use poly::*;
 use traits::*;
 
 type P = Poly<FE>;
