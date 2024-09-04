@@ -7,6 +7,7 @@ use ark_ff::BigInt;
 use field::*;
 use fri::*;
 use poly::*;
+use rand::random;
 use rs_merkle::{algorithms::Sha256, Hasher, MerkleTree};
 use traits::*;
 
@@ -15,29 +16,43 @@ type P = Poly<FE>;
 enum Message {
     Commit(String),
     Random(FE),
+    RandomInt(u64),
     Answer(FE),
     Proof(MerklePath),
 }
 
 trait TranscriptProtocol {
-    fn random(&mut self) -> FE;
     fn commit(&mut self, value: String);
+    fn random(&mut self) -> FE;
+    fn random_int(&mut self, min: u64, max: u64) -> u64;
     fn answer(&mut self, value: &FE);
     fn prove(&mut self, proof: MerklePath);
-    fn show(&self);
+    fn serialize(&self) -> String;
+    fn show(&self) {
+        let serialized = self.serialize();
+        println!("{}\nUncompressed length: {}", serialized, serialized.len());
+    }
 }
 
 type Transcript = Vec<Message>;
 
 impl TranscriptProtocol for Transcript {
+    fn commit(&mut self, value: String) {
+        self.push(Message::Commit(value));
+    }
+
     fn random(&mut self) -> FE {
         let value = FE::rand();
         self.push(Message::Random(value));
         value
     }
 
-    fn commit(&mut self, value: String) {
-        self.push(Message::Commit(value));
+    fn random_int(&mut self, min: u64, max: u64) -> u64 {
+        assert!(min < max, "min={} must be less than max={}", min, max);
+        let delta = max - min + 1;
+        let value = random::<u64>() % delta + min;
+        self.push(Message::RandomInt(value));
+        value
     }
 
     fn answer(&mut self, value: &FE) {
@@ -48,16 +63,23 @@ impl TranscriptProtocol for Transcript {
         self.push(Message::Proof(proof));
     }
 
-    fn show(&self) {
-        println!("Transcript:");
+    fn serialize(&self) -> String {
+        let mut serialized = String::new();
+        serialized.push_str("Transcript:\n");
         for message in self {
             match message {
-                Message::Commit(value) => println!("Commit: {}", value),
-                Message::Random(value) => println!("Random: {}", value),
-                Message::Answer(value) => println!("Answer: {}", value),
-                Message::Proof(proof) => println!("Proof: {:?}", proof.proof_hashes_hex()),
+                Message::Commit(value) => serialized.push_str(&format!("Commit: {}\n", value)),
+                Message::Random(value) => serialized.push_str(&format!("Random: {}\n", value)),
+                Message::RandomInt(value) => {
+                    serialized.push_str(&format!("RandomInt: {}\n", value))
+                }
+                Message::Answer(value) => serialized.push_str(&format!("Answer: {}\n", value)),
+                Message::Proof(proof) => {
+                    serialized.push_str(&format!("Proof: {:?}\n", proof.proof_hashes_hex()))
+                }
             }
         }
+        serialized
     }
 }
 
@@ -76,7 +98,7 @@ fn eval_on_domain(poly: &P, domain: &Vec<FE>) -> Vec<FE> {
     poly_evals
 }
 
-fn commit(transcript: &mut Transcript, poly_evals: &Vec<FE>, merkle: &mut Merkle) {
+fn commit_layer(transcript: &mut Transcript, poly_evals: &Vec<FE>, merkle: &mut Merkle) {
     let leaves = poly_evals
         .iter()
         .map(|&elem| Sha256::hash(elem.to_string().as_bytes()))
@@ -87,6 +109,9 @@ fn commit(transcript: &mut Transcript, poly_evals: &Vec<FE>, merkle: &mut Merkle
     merkle.commit();
     let root_hex = merkle.root_hex().unwrap();
     transcript.commit(root_hex);
+    //poly_evals
+    //    .iter()
+    //    .for_each(|&elem| transcript.commit(elem.to_string()));
 }
 
 fn next_fri_domain(domain: &Vec<FE>) -> Vec<FE> {
@@ -125,7 +150,7 @@ fn fri_commit(
     domain: &Vec<FE>,
     layer: &Vec<FE>,
     merkle: &mut Merkle,
-) {
+) -> (Vec<P>, Vec<Vec<FE>>, Vec<Vec<FE>>, Vec<Merkle>) {
     let mut fri_polys: Vec<P> = vec![poly.clone()];
     let mut fri_domains: Vec<Vec<FE>> = vec![domain.clone()];
     let mut fri_layers: Vec<Vec<FE>> = vec![layer.clone()];
@@ -138,11 +163,12 @@ fn fri_commit(
         fri_domains.push(next_domain);
         fri_layers.push(next_layer.clone());
         let mut next_merkle = Merkle::new();
-        commit(transcript, &next_layer, &mut next_merkle);
+        commit_layer(transcript, &next_layer, &mut next_merkle);
         fri_merkles.push(next_merkle);
     }
     let last_value = fri_layers.last().unwrap().first().unwrap();
     transcript.answer(last_value);
+    (fri_polys, fri_domains, fri_layers, fri_merkles)
 }
 
 fn fri_decommit_on_layers(
@@ -191,6 +217,29 @@ fn fri_decommit_on_query(
     fri_decommit_on_layers(transcript, idx, fri_layers, fri_merkles);
 }
 
+fn fri_decommit(
+    transcript: &mut Transcript,
+    log2blowup: &u64,
+    root_layer: &Vec<FE>,
+    root_merkle: &Merkle,
+    fri_layers: &Vec<Vec<FE>>,
+    fri_merkles: &Vec<Merkle>,
+) {
+    let blowup = 1 << log2blowup;
+    for _ in 0..3 {
+        let idx = transcript.random_int(0, root_layer.len() as u64 - blowup * 2);
+        fri_decommit_on_query(
+            transcript,
+            idx,
+            log2blowup,
+            root_layer,
+            root_merkle,
+            fri_layers,
+            fri_merkles,
+        );
+    }
+}
+
 fn main() {
     let log2size: u64 = 10;
     let len: u64 = 1 << log2size;
@@ -203,12 +252,26 @@ fn main() {
         merkle.root_hex().unwrap_or_else(|| "None".to_string())
     );
     let eval_domain = generate_eval_domain(log2size_extended);
-    let layer = eval_on_domain(&poly, &eval_domain);
+    let root_layer = eval_on_domain(&poly, &eval_domain);
     let mut transcript: Transcript = vec![];
-    commit(&mut transcript, &layer, &mut merkle);
+    commit_layer(&mut transcript, &root_layer, &mut merkle);
     let fri_domain = eval_domain;
     println!("Merkle root: {}", merkle.root_hex().unwrap());
-    fri_commit(&mut transcript, &poly, &fri_domain, &layer, &mut merkle);
+    let (fri_polys, fri_domains, fri_layers, fri_merkles) = fri_commit(
+        &mut transcript,
+        &poly,
+        &fri_domain,
+        &root_layer,
+        &mut merkle,
+    );
+    fri_decommit(
+        &mut transcript,
+        &log2blowup,
+        &root_layer,
+        &merkle,
+        &fri_layers,
+        &fri_merkles,
+    );
     transcript.show();
 }
 
