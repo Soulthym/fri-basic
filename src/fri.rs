@@ -1,6 +1,7 @@
 use rs_merkle::{algorithms::Sha256, MerkleProof, MerkleTree};
 
 pub type Merkle = MerkleTree<Sha256>;
+pub type MerklePath = MerkleProof<Sha256>;
 
 #[cfg(test)]
 mod tests {
@@ -23,14 +24,14 @@ mod tests {
         merkle.commit();
         let indices_to_prove = vec![1];
         let leaves_to_prove = &[*leaves.get(1).unwrap()];
-        let root_hex = merkle.root_hex().expect("Failed to get root");
+        let root = merkle.root().expect("Failed to get root");
+        let root_hex = merkle.root_hex().expect("Failed to get root hex");
         println!("Root: {}", root_hex);
         let proof = merkle.proof(&indices_to_prove);
+        println!("Proof: {:?}", proof.proof_hashes_hex());
         println!(
-            "Proof: {}",
-            proof
-                .root_hex(&indices_to_prove, leaves_to_prove, leaves.len())
-                .unwrap()
+            "Verify: {}",
+            proof.verify(root, &indices_to_prove, leaves_to_prove, leaves.len())
         );
     }
 }
