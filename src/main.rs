@@ -7,7 +7,7 @@ use ark_ff::BigInt;
 use field::*;
 use fri::*;
 use poly::*;
-use rs_merkle::{algorithms::Sha256, Hasher, MerkleProof, MerkleTree};
+use rs_merkle::{algorithms::Sha256, Hasher, MerkleTree};
 use traits::*;
 
 type P = Poly<FE>;
@@ -16,12 +16,14 @@ enum Message {
     Commit(String),
     Random(FE),
     Answer(FE),
+    Proof(MerklePath),
 }
 
 trait TranscriptProtocol {
     fn random(&mut self) -> FE;
     fn commit(&mut self, value: String);
     fn answer(&mut self, value: &FE);
+    fn prove(&mut self, proof: MerklePath);
     fn show(&self);
 }
 
@@ -42,6 +44,10 @@ impl TranscriptProtocol for Transcript {
         self.push(Message::Answer(*value));
     }
 
+    fn prove(&mut self, proof: MerklePath) {
+        self.push(Message::Proof(proof));
+    }
+
     fn show(&self) {
         println!("Transcript:");
         for message in self {
@@ -49,6 +55,7 @@ impl TranscriptProtocol for Transcript {
                 Message::Commit(value) => println!("Commit: {}", value),
                 Message::Random(value) => println!("Random: {}", value),
                 Message::Answer(value) => println!("Answer: {}", value),
+                Message::Proof(proof) => println!("Proof: {:?}", proof.proof_hashes_hex()),
             }
         }
     }
@@ -138,11 +145,57 @@ fn fri_commit(
     transcript.answer(last_value);
 }
 
+fn fri_decommit_on_layers(
+    transcript: &mut Transcript,
+    idx: u64,
+    fri_layers: &Vec<Vec<FE>>,
+    fri_merkles: &Vec<Merkle>,
+) {
+    let mut idx = idx;
+    for (layer, merkle) in fri_layers
+        .iter()
+        .zip(fri_merkles.iter())
+        .take(fri_layers.len() - 1)
+    {
+        let length = layer.len() as u64;
+        idx %= length;
+        let sibling_idx = (idx + length / 2) % length;
+        transcript.answer(&layer[idx as usize]);
+        transcript.prove(merkle.proof(&[idx as usize]));
+        transcript.answer(&layer[sibling_idx as usize]);
+        transcript.prove(merkle.proof(&[sibling_idx as usize]));
+    }
+}
+
+fn fri_decommit_on_query(
+    transcript: &mut Transcript,
+    idx: u64,
+    log2blowup: &u64,
+    root_layer: &Vec<FE>,
+    root_merkle: &Merkle,
+    fri_layers: &Vec<Vec<FE>>,
+    fri_merkles: &Vec<Merkle>,
+) {
+    let blowup = 1 << log2blowup;
+    let size_limit = root_layer.len() as u64 - blowup * 2;
+    assert!(
+        idx < size_limit,
+        "idx needs to be less than {}",
+        root_layer.len() as u64 - log2blowup
+    );
+    for i in 0..3 {
+        let idx = idx + i * blowup;
+        transcript.answer(&root_layer[idx as usize]);
+        transcript.prove(root_merkle.proof(&[idx as usize]));
+    }
+    fri_decommit_on_layers(transcript, idx, fri_layers, fri_merkles);
+}
+
 fn main() {
     let log2size: u64 = 10;
     let len: u64 = 1 << log2size;
-    let blowup: u64 = 3;
-    let log2size_extended: u64 = log2size + blowup;
+    let log2blowup: u64 = 3;
+    let log2size_extended: u64 = log2size + log2blowup;
     let poly = P::rand_n(len);
     let mut merkle = Merkle::new();
     println!(
@@ -150,12 +203,12 @@ fn main() {
         merkle.root_hex().unwrap_or_else(|| "None".to_string())
     );
     let eval_domain = generate_eval_domain(log2size_extended);
-    let values = eval_on_domain(&poly, &eval_domain);
+    let layer = eval_on_domain(&poly, &eval_domain);
     let mut transcript: Transcript = vec![];
-    commit(&mut transcript, &values, &mut merkle);
+    commit(&mut transcript, &layer, &mut merkle);
     let fri_domain = eval_domain;
     println!("Merkle root: {}", merkle.root_hex().unwrap());
-    fri_commit(&mut transcript, &poly, &fri_domain, &values, &mut merkle);
+    fri_commit(&mut transcript, &poly, &fri_domain, &layer, &mut merkle);
     transcript.show();
 }
 
