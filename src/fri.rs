@@ -135,9 +135,6 @@ fn commit_layer(transcript: &mut Transcript, poly_evals: &Vec<FE>, oracle: &mut 
     oracle.commit();
     let root_hex = oracle.root_hex().unwrap();
     transcript.commit(root_hex);
-    //poly_evals
-    //    .iter()
-    //    .for_each(|&elem| transcript.commit(elem.to_string()));
 }
 
 fn next_fri_domain(domain: &Vec<FE>) -> Vec<FE> {
@@ -541,10 +538,6 @@ fn verify_merkle_proof(
     oracle: &Merkle,
     len_leaves: usize,
 ) -> bool {
-    //let indices_to_prove = vec![1];
-    //let leaves_to_prove = &[*leaves.get(1).unwrap()];
-    //let root = merkle.root().expect("Failed to get root");
-    //proof.verify(root, &indices_to_prove, leaves_to_prove, leaves.len())
     let indices_to_prove: Vec<usize> = vec![idx as usize];
     let leaves_to_prove = &[Sha256::hash(leaf.to_string().as_bytes())];
     let root = oracle.root().expect("Failed to get root");

@@ -99,7 +99,7 @@ impl CoSet for FE {
         so while I might have missed a step, I am rolling with it for this
         implementation. based on the test below, the size matches.
         I am not confident this is the non-trivial coset generator,
-        due to the highly predictable values of the coset generates.
+        due to the highly predictable values of the coset generated.
         I felt this was worth mentioning.
         NB2: This article seems to suggest that it doesn't matter in this case:
         https://aszepieniec.github.io/stark-anatomy/fri.html#coset-fri

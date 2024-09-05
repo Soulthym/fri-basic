@@ -31,7 +31,7 @@ I am using the Goldilocks Field 2^64-2^32+1 for the implementation. The field is
 This field's 'magic' values were reverse-engineered from the [Plonky2 codebase](https://github.com/0xPolygonZero/plonky2/blob/main/field/src/goldilocks_field.rs), mainly the multiplicative coset generator.  
 I implemented polynomial algebra in the `polynomial.rs` file.  
 The FRI prover and verifiers are implemented in the `fri.rs` file.  
-The "Fiat Shamir" transform is merely simulated by using RNG to generate the challenges. The workflow I'm using was inspired from it though as it makes testing easier to have it non-interactive.  
+The *Fiat Shamir* transform is merely simulated by using RNG to generate the challenges. The workflow I'm using was inspired from it though as it makes testing easier to have it non-interactive.  
 There is also no interpolation of any kind, as the focus was on the FRI algorithm itself. I only verify layers for consistency and their proofs.
 
 ### Notes and acknowledgements
