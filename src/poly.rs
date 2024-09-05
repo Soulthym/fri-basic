@@ -257,8 +257,10 @@ impl DivMod<Poly<FE>> for Poly<FE> {
     where
         Self: Sized,
     {
-        // translated verbatim from
-        // https://github.com/starkware-industries/stark101/blob/8addc2c7f4a0731299cad97dc5ca35d83b4b295f/tutorial/polynomial.py#L177
+        /*
+        Translated verbatim from
+        https://github.com/starkware-industries/stark101/blob/8addc2c7f4a0731299cad97dc5ca35d83b4b295f/tutorial/polynomial.py#L177
+        */
         let lhs = Box::new(self.trimtrailingzeros());
         let rhs = Box::new(other.trimtrailingzeros());
         if lhs.coeffs.is_empty() {
@@ -350,6 +352,7 @@ impl Pow<u64> for Poly<FE> {
 mod poly_tests {
     use super::*;
 
+    #[test]
     fn test_repr() {
         type P = Poly<FE>;
         for i in 0..10 {
@@ -389,6 +392,7 @@ mod poly_tests {
         println!("{}", p.repr());
     }
 
+    #[test]
     fn test_rand_poly() {
         for i in 0..2048 {
             println!("--- i = {} ---", i);
@@ -398,6 +402,7 @@ mod poly_tests {
         }
     }
 
+    #[test]
     fn test_poly_add() {
         println!("--- same length ---");
         let p1 = Poly::from(vec![1, 2, 3]);
@@ -424,6 +429,7 @@ mod poly_tests {
         assert_eq!(res, Poly::from(vec![5, 7, 3]));
     }
 
+    #[test]
     fn test_poly_mul() {
         println!("--- same length ---");
         let p1 = Poly::from(vec![1, 2, 3]);
@@ -450,6 +456,7 @@ mod poly_tests {
         assert_eq!(res, Poly::from(vec![4, 13, 22, 15]));
     }
 
+    #[test]
     fn test_poly_pow() {
         let p = Poly::from(vec![1, 2, 3]);
         println!("{}\n^{}\n", p, 0);
@@ -473,6 +480,7 @@ mod poly_tests {
         assert_eq!(res, p.clone() * p.clone() * p.clone());
     }
 
+    #[test]
     fn test_poly_neg() {
         let p = Poly::from(vec![1, 2, 3]);
         println!("-({})", p);
@@ -481,6 +489,7 @@ mod poly_tests {
         assert_eq!(np, Poly::from(vec![MOD - 1, MOD - 2, MOD - 3]));
     }
 
+    #[test]
     fn test_poly_sub() {
         let p1 = Poly::from(vec![1, 2, 3]);
         let p2 = Poly::from(vec![4, 5, 6]);
@@ -490,6 +499,7 @@ mod poly_tests {
         assert_eq!(res, Poly::from(vec![MOD - 3, MOD - 3, MOD - 3]));
     }
 
+    #[test]
     fn test_poly_divmod() {
         let p1 = Poly::from(vec![1, 2, 3, 4]);
         let p2 = Poly::from(vec![1, 2, 3]);
@@ -499,6 +509,7 @@ mod poly_tests {
         assert_eq!(q * p2 + r.clone(), p1);
     }
 
+    #[test]
     fn test_divmod_random_poly() {
         for i in 0..1_000 {
             println!("--- i = {} ---", i);
@@ -523,6 +534,7 @@ mod poly_tests {
         }
     }
 
+    #[test]
     fn test_poly_eval() {
         let p = Poly::from(vec![1, 2, 3]);
         let expected = [1, 6, 17, 34, 57, 86, 121, 162, 209, 262, 321];
@@ -532,30 +544,5 @@ mod poly_tests {
             println!("{}: {} = {}", i, p, res);
             assert_eq!(res, FE::from(expected[i as usize]));
         }
-    }
-
-    #[test]
-    fn test_sequence() {
-        println!("\n\n=== TEST REPR ===");
-        test_repr();
-        println!("\n\n=== TEST RAND POLY ===");
-        test_rand_poly();
-        println!("\n\n=== TEST POLY ADD ===");
-        test_poly_add();
-        println!("\n\n=== TEST POLY MUL ===");
-        test_poly_mul();
-        println!("\n\n=== TEST POLY POW ===");
-        test_poly_pow();
-        println!("\n\n=== TEST POLY NEG ===");
-        test_poly_neg();
-        println!("\n\n=== TEST POLY SUB ===");
-        test_poly_sub();
-        println!("\n\n=== TEST POLY DIVMOD ===");
-        test_poly_divmod();
-        println!("\n\n=== TEST DIV RANDOM POLY ===");
-        test_divmod_random_poly();
-        println!("\n\n=== TEST POLY EVAL ===");
-        test_poly_eval();
-        println!("\n\n=== ALL TESTS PASSED ===");
     }
 }

@@ -49,8 +49,8 @@ pub trait Pow<T> {
     fn pow_2_pow(&self, powlog: u64) -> Self::Output;
 }
 
-pub trait SubGroup {
+pub trait CoSet {
     type Output;
     fn order(&self) -> u64;
-    fn subgen(size: u64) -> Self::Output;
+    fn generate_coset_log2size(size: u64) -> Self::Output;
 }
