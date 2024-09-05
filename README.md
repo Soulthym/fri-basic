@@ -1,6 +1,6 @@
 # fri-basic
 This is a simple implementation of the Fast Reed-Solomon Interactive Oracle Proof of Proximity (FRI) algorithm in Rust.  
-The original algorithm is described in the paper [Fast Reed-Solomon Interactive Oracle Proofs of Proximity](https://eprint.iacr.org/2017/636.pdf) by Eli Ben-Sasson, Iddo Bentov, Ynon Horesh, and Michael Riabzev  
+The original algorithm is described in the paper [Fast Reed-Solomon Interactive Oracle Proofs of Proximity](https://eccc.weizmann.ac.il/report/2017/134/) by Eli Ben-Sasson, Iddo Bentov, Ynon Horesh, and Michael Riabzev  
 
 ## Dependencies
 Make sure you have rustup and cargo installed on your machine. If not, you can install it by following the instructions [here](https://www.rust-lang.org/tools/install).  
