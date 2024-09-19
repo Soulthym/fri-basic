@@ -129,7 +129,7 @@ class GeneratorSlide(Scene):
         self.wait(1)
         g_tex = MathTex(r"g = %s" % g)
         self.play(Write(g_tex))
-        circle = Circle(radius=3, color=WHITE, stroke_width=2)
+        circle = Circle(radius=2.5, color=WHITE, stroke_width=2)
         self.play(Create(circle))
         labels = VGroup()
         for i in range(17):
@@ -350,7 +350,7 @@ def bubble(text, from_direction, **kwargs):
                     mr,
                     ur,
                     stroke_width=3, color=WHITE)
-    return VGroup(shape, text)
+    return VGroup(shape, text).shift(DOWN / 2)
 
 class FriIntroductionSlide(Scene):
     def construct(self):
@@ -393,10 +393,10 @@ class FriSlide(Scene):
         g = F.generator()
         cp0 = MathTex(r"CP(x)", r"=", r"\alpha_0", r"p_0(x)", r"+", r"\alpha_1", r"p_1(x)", r"+", r"\alpha_2", r"p_2(x)").to_edge(DOWN)
         self.add(cp0)
-        self.play(cp0.animate.to_edge(UP))
-        prover = VGroup(SVGMobject("prover.svg").to_edge(LEFT))
+        self.play(cp0.animate.to_edge(UP).shift(DOWN))
+        prover = VGroup(SVGMobject("prover.svg").scale(.8).to_edge(LEFT).shift(DOWN/2))
         prover.add(Tex(r"\textbf{Prover}").next_to(prover[-1], DOWN))
-        verifier = VGroup(SVGMobject("verifier.svg").to_edge(RIGHT))
+        verifier = VGroup(SVGMobject("verifier.svg").scale(.8).to_edge(RIGHT).shift(DOWN/2))
         verifier.add(Tex(r"\textbf{Verifier}").next_to(verifier[-1], DOWN))
         self.play(Create(prover), Create(verifier))
         self.wait(1)
@@ -408,12 +408,12 @@ class FriSlide(Scene):
         bubble_verifier = bubble(r"Use ($%s$, $%s$, $%s$)" % alphas, from_direction=RIGHT)
         self.play(Create(bubble_verifier))
         self.wait(1)
-        cp1 = MathTex(r"CP_{0}(x)", r"=", str(alphas[0]), r"p_0(x)", r"+", str(alphas[1]), r"p_1(x)", r"+", str(alphas[2]), r"p_2(x)").to_edge(UP)
+        cp1 = MathTex(r"CP_{0}(x)", r"=", str(alphas[0]), r"p_0(x)", r"+", str(alphas[1]), r"p_1(x)", r"+", str(alphas[2]), r"p_2(x)").to_edge(UP).shift(DOWN)
         self.play(TransformMatchingTex(cp0, cp1))
         self.wait(1)
         self.play(Uncreate(bubble_verifier))
         cp: Polynomial = sum(a * p for a, p in zip(alphas, (p0, p1, p2)))
-        cp_tex = MathTex(*repr_latex(cp, name='CP_0')).to_edge(UP)
+        cp_tex = MathTex(*repr_latex(cp, name='CP_0')).to_edge(UP).shift(DOWN)
         self.play(TransformMatchingTex(cp1,  cp_tex))
 
         domain = [g ** i for i in range(16)]
@@ -435,9 +435,9 @@ class FriSlide(Scene):
         merkle_root.target.next_to(verifier, UP).scale(.7).to_edge(RIGHT)
         self.play(MoveToTarget(merkle_root, rate_func=rate_functions.ease_in_sine, run_time=1))
 
-        cp_tex2 = cp_tex.copy().to_edge(UP)
+        cp_tex2 = cp_tex.copy().to_edge(UP).shift(DOWN)
         self.add(cp_tex2)
-        last_cp_tex = cp_tex.copy().to_edge(UP)
+        last_cp_tex = cp_tex.copy().to_edge(UP).shift(DOWN)
         self.add(last_cp_tex)
         last_cp = cp
         self.wait(1)
@@ -452,7 +452,7 @@ class FriSlide(Scene):
         query = 7
         self.play(Uncreate(table))
 
-        def render_solve(*steps, align_to=None, scale=1.0, to_edge=None):
+        def render_solve(*steps, align_to=None, scale=1.0, to_edge=None, shift=None):
             nonlocal title, last_title
             print("Rendering solve")
             pp(steps)
@@ -503,6 +503,8 @@ class FriSlide(Scene):
                     text = text.scale(scale)
                     if to_edge is not None:
                         text = text.to_edge(to_edge).shift(LEFT * 3.1)
+                    if shift is not None and e == 0:
+                        text = text.shift(shift)
                     if s == 0:
                         self.play(Create(text))
                     else:
@@ -511,11 +513,10 @@ class FriSlide(Scene):
                     prev = text
                 self.wait(1)
             return VGroup(*systems[-1])
-
         for i in range(1, 4):
             self.wait(1)
             self.next_section("FRI_steps_%s_commit" % i)
-            title = Tex("FRI - Step %s: Commit" % i, font_size=56).to_edge(UP)
+            title = Tex("FRI - Step %s: Commit" % (i+1), font_size=56).to_edge(UP)
             self.play(TransformMatchingTex(last_title, title))
             self.wait(1)
             last_title = title
@@ -545,7 +546,7 @@ class FriSlide(Scene):
             last_odd_tex = real_odd_tex
             self.wait(1)
 
-            cp_unexpanded = MathTex("CP_{%s}" % i, r"=", *repr_latex(real_even_cp), "+", r"\beta_%i" % (i-1), "(", *repr_latex(real_odd_cp), ")").to_edge(UP).align_to(last_cp_tex, LEFT)
+            cp_unexpanded = MathTex("CP_{%s}" % i, r"=", *repr_latex(real_even_cp), "+", r"\beta_%i" % (i-1), "(", *repr_latex(real_odd_cp), ")").to_edge(UP).align_to(last_cp_tex, LEFT).shift(DOWN)
             self.play(TransformMatchingTex(last_cp_tex, cp_unexpanded))
             last_cp_tex = cp_unexpanded
             self.wait(1)
@@ -563,21 +564,21 @@ class FriSlide(Scene):
             self.add(beta_tex)
             self.remove(copy_bubble)
             beta_tex.generate_target()
-            beta_tex.target.next_to(verifier, DOWN).shift(DOWN * 1/3).scale(.5)
+            beta_tex.target.next_to(verifier, DOWN).scale(.5)
             self.play(MoveToTarget(beta_tex, rate_func=rate_functions.ease_in_sine, run_time=1))
             self.wait(1)
 
             verifying_values = VGroup()
             verifying_values.add(beta_tex.copy())
 
-            cp_unexpanded = MathTex("CP_{%s}" % i, r"=", *repr_latex(real_even_cp), "+", beta, "(",  *repr_latex(real_odd_cp), ")").to_edge(UP).align_to(last_cp_tex, LEFT)
+            cp_unexpanded = MathTex("CP_{%s}" % i, r"=", *repr_latex(real_even_cp), "+", beta, "(",  *repr_latex(real_odd_cp), ")").to_edge(UP).align_to(last_cp_tex, LEFT).shift(DOWN)
             self.play(TransformMatchingTex(last_cp_tex, cp_unexpanded))
             last_cp_tex = cp_unexpanded
             self.wait(1)
 
             cp_next = real_even_cp + beta * real_odd_cp
             fri_polys.append(cp_next)
-            cp_next_tex = MathTex(*repr_latex(cp_next, name='CP_%s' % (i))).to_edge(UP).align_to(last_cp_tex, LEFT)
+            cp_next_tex = MathTex(*repr_latex(cp_next, name='CP_%s' % (i))).to_edge(UP).align_to(last_cp_tex, LEFT).shift(DOWN)
             self.play(Uncreate(bubble_prover), Uncreate(bubble_verifier))
             self.play(TransformMatchingTex(last_cp_tex, cp_next_tex))
             last_cp_tex = cp_next_tex
@@ -650,7 +651,7 @@ class FriSlide(Scene):
             self.add(layer_idx)
             self.remove(copy_bubble)
             layer_idx.generate_target()
-            layer_idx.target.next_to(verifier, DOWN).shift(DOWN * 2/3).scale(.5)
+            layer_idx.target.next_to(verifier, DOWN).shift(DOWN * 1/3).scale(.5)
             self.play(MoveToTarget(layer_idx, rate_func=rate_functions.ease_in_sine, run_time=1))
             self.wait(1)
             verifying_values.add(layer_idx.copy())
@@ -663,7 +664,7 @@ class FriSlide(Scene):
             self.add(layer_idx_proof)
             self.remove(copy_bubble)
             layer_idx_proof.generate_target()
-            layer_idx_proof.target.next_to(verifier, DOWN).shift(DOWN * 3/3).scale(.5)
+            layer_idx_proof.target.next_to(verifier, DOWN).shift(DOWN * 2/3).scale(.5)
             self.play(MoveToTarget(layer_idx_proof, rate_func=rate_functions.ease_in_sine, run_time=1))
             self.wait(1)
             verifying_values.add(layer_idx_proof.copy())
@@ -677,7 +678,7 @@ class FriSlide(Scene):
             layer_sib_idx = copy_bubble[1]
             self.add(layer_sib_idx)
             layer_sib_idx.generate_target()
-            layer_sib_idx.target.next_to(verifier, DOWN).shift(DOWN * 4/3).scale(.5)
+            layer_sib_idx.target.next_to(verifier, DOWN).shift(DOWN * 3/3).scale(.5)
             self.play(MoveToTarget(layer_sib_idx, rate_func=rate_functions.ease_in_sine, run_time=1))
             self.wait(1)
             verifying_values.add(layer_sib_idx.copy())
@@ -691,7 +692,7 @@ class FriSlide(Scene):
             self.add(layer_sib_idx_proof)
             self.remove(copy_bubble)
             layer_sib_idx_proof.generate_target()
-            layer_sib_idx_proof.target.next_to(verifier, DOWN).shift(DOWN * 5/3).scale(.5)
+            layer_sib_idx_proof.target.next_to(verifier, DOWN).shift(DOWN * 4/3).scale(.5)
             self.play(MoveToTarget(layer_sib_idx_proof, rate_func=rate_functions.ease_in_sine, run_time=1))
             self.wait(1)
             verifying_values.add(layer_sib_idx_proof.copy())
@@ -756,7 +757,7 @@ class FriSlide(Scene):
                     ["CP_{%s}(%s)" % (i - 1, domain[sib_idx]),
                      "=", str(prev_sib_idx)]
                 ]),
-                scale=.7)
+                scale=.7, shift=UP/2)
             assert res == CP_idx, "The proof is incorrect"
             self.wait(1)
             result = render_solve(
@@ -791,7 +792,6 @@ class FriSlide(Scene):
                        layer_sib_idx, 
                        layer_sib_idx_proof)))
             self.wait(1)
-            break
         self.play(FadeOut(last_even_tex), FadeOut(last_odd_tex))
 
 class RecapSlide(Scene):
