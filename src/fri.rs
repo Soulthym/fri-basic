@@ -456,6 +456,9 @@ fn fri_verify(
         // p0 = (f0 + f1) / 2
         // p1 = (f0 - f1) / (2 * beta)
         // we check that p0 and p1 are the correct answers at the previous layer
+        // which means:
+        // f0 = p0 + p1 * beta
+        // and that the merkle proofs are correct
         let beta = betas[i];
         let oracle = oracles.get(i).expect("Failed to get oracle");
 
