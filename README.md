@@ -42,3 +42,26 @@ This was made following the [stark101 tutorial](https://starkware.co/stark-101/)
 A few honorable mentions:
 - [Anatomy of a STARK, Part 3: FRI](https://aszepieniec.github.io/stark-anatomy/fri.html)
 - [Risc Zero's study club - Stark by hand](https://dev.risczero.com/proof-system/stark-by-hand) and their [YouTube channel](https://www.youtube.com/watch?v=j35yz22OVGE&list=PLcPzhUaCxlCjdhONxEYZ1dgKjZh3ZvPtl&index=2&t=0s)
+
+## Building the slides
+Install direnv on your system
+```bash
+sudo apt install direnv
+```
+Go to the slides directory
+```bash
+cd slides/
+```
+Enable direnv in your shell
+```bash
+direnv allow
+```
+Install dependencies
+```bash
+pip install -r requirements.txt
+```
+Build the slides
+```bash
+python slides.py
+```
+This will generate `Presentation.mp4` in the `slides/` directory.
